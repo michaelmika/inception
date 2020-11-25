@@ -43,13 +43,17 @@ import javax.xml.transform.sax.SAXTransformerFactory;
 import javax.xml.transform.sax.TransformerHandler;
 import javax.xml.transform.stream.StreamResult;
 
+import de.tudarmstadt.ukp.inception.htmleditor.textRelationsAnnotator.TextRelationsCssResourceReference;
+import de.tudarmstadt.ukp.inception.htmleditor.textRelationsAnnotator.TextRelationsJavascriptResourceReference;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.uima.cas.CAS;
 import org.apache.uima.cas.CASException;
 import org.apache.uima.cas.text.AnnotationFS;
+import org.apache.wicket.Component;
 import org.apache.wicket.ajax.AbstractDefaultAjaxBehavior;
 import org.apache.wicket.ajax.AjaxRequestTarget;
+import org.apache.wicket.ajax.markup.html.form.AjaxButton;
 import org.apache.wicket.feedback.IFeedback;
 import org.apache.wicket.markup.head.CssHeaderItem;
 import org.apache.wicket.markup.head.IHeaderResponse;
@@ -57,7 +61,12 @@ import org.apache.wicket.markup.head.JavaScriptHeaderItem;
 import org.apache.wicket.markup.head.OnDomReadyHeaderItem;
 import org.apache.wicket.markup.html.WebComponent;
 import org.apache.wicket.markup.html.basic.Label;
+import org.apache.wicket.markup.html.form.Button;
+
+import org.apache.wicket.markup.html.form.Form;
 import org.apache.wicket.model.IModel;
+import org.apache.wicket.model.Model;
+import org.apache.wicket.model.PropertyModel;
 import org.apache.wicket.request.IRequestParameters;
 import org.apache.wicket.spring.injection.annot.SpringBean;
 import org.apache.wicket.util.string.Strings;
@@ -108,7 +117,12 @@ public class HtmlAnnotationEditor
     private static final long serialVersionUID = -3358207848681467993L;
     private static final Logger LOG = LoggerFactory.getLogger(HtmlAnnotationEditor.class);
 
-    private Label vis;
+    private Form<Void> form;
+    private Label textLeft, textRight, positionLabel1, positionLabel2;
+    private AjaxButton textLeftPrevious, textLeftNext, textRightPrevious, textRightNext;
+    private List<AnnotationFS> sentences;
+    private Model<String> sentence1, sentence2, positionString1, positionString2;
+    private int leftSentenceIndex = 0, rightSentenceIndex = 1;
     private StoreAdapter storeAdapter;
 
     private @SpringBean PreRenderer preRenderer;
@@ -116,18 +130,161 @@ public class HtmlAnnotationEditor
     private @SpringBean AnnotationEditorExtensionRegistry extensionRegistry;
     private @SpringBean ColoringService coloringService;
 
+    public int getNewSentenceIndex(int index1, int index2, String method){
+        int tmp = 0;
+        if(sentences.size() < 2){
+            return tmp;
+        }
+        switch (method){
+            case "next":
+                LOG.info("Method next");
+                if (index1 + 1 > sentences.size() - 1) {
+                    tmp = 0;
+                }else{
+                    tmp = index1 + 1;
+                }
+                if (tmp == index2) {
+                    tmp = getNewSentenceIndex(tmp, index2, method);
+                }
+                break;
+            case "previous":
+                LOG.info("Method previous");
+                if (index1 - 1 < 0) {
+                    tmp = sentences.size() - 1;
+                }else{
+                    tmp = index1 - 1;
+                }
+                if (tmp == index2) {
+                    tmp = getNewSentenceIndex(tmp, index2, method);
+                }
+                break;
+            default:
+                break;
+        }
+        return tmp;
+    }
+
     public HtmlAnnotationEditor(String aId, IModel<AnnotatorState> aModel,
             AnnotationActionHandler aActionHandler, CasProvider aCasProvider)
     {
         super(aId, aModel, aActionHandler, aCasProvider);
+        LOG.info("HTML:");
+        LOG.info(this.renderHtml());
+        //vis = new Label("vis", LambdaModel.of(this::renderHtml));
+        //vis.setOutputMarkupId(true);
+        //vis.setEscapeModelStrings(false);
+        //add(vis);
+        getSentences();
+        renderTextRelations();
 
-        vis = new Label("vis", LambdaModel.of(this::renderHtml));
-        vis.setOutputMarkupId(true);
-        vis.setEscapeModelStrings(false);
-        add(vis);
+
 
         storeAdapter = new StoreAdapter();
         add(storeAdapter);
+    }
+    public Form createForm(){
+        Form<Void> form = new Form<Void>("textRelationForm");
+
+        // Navigation Buttons
+        form.add(new AjaxButton("textLeftPrevious"){
+            @Override
+            protected void onSubmit(AjaxRequestTarget target){
+                super.onSubmit(target);
+                leftSentenceIndex = getNewSentenceIndex(leftSentenceIndex, rightSentenceIndex, "previous");
+                LOG.info("Button Click");
+                LOG.info("" + leftSentenceIndex);
+                sentence1.setObject(sentences.get(leftSentenceIndex).getCoveredText());
+                positionString1.setObject("(" + (leftSentenceIndex + 1) + "/" + sentences.size() + ")");
+                renderTextRelations(target);
+            }
+        });
+        form.add(new AjaxButton("textLeftNext"){
+            @Override
+            protected void onSubmit(AjaxRequestTarget target){
+                super.onSubmit(target);
+                leftSentenceIndex = getNewSentenceIndex(leftSentenceIndex, rightSentenceIndex, "next");
+                LOG.info("Button Click");
+                LOG.info("" + leftSentenceIndex);
+                sentence1.setObject(sentences.get(leftSentenceIndex).getCoveredText());
+                positionString1.setObject("(" + (leftSentenceIndex + 1) + "/" + sentences.size() + ")");
+                renderTextRelations(target);
+            }
+        });
+        form.add(new AjaxButton("textRightPrevious"){
+            @Override
+            protected void onSubmit(AjaxRequestTarget target){
+                super.onSubmit(target);
+                rightSentenceIndex = getNewSentenceIndex(rightSentenceIndex, leftSentenceIndex, "previous");
+                LOG.info("Button Click");
+                LOG.info("" + rightSentenceIndex);
+                sentence2.setObject(sentences.get(rightSentenceIndex).getCoveredText());
+                positionString2.setObject("(" + (rightSentenceIndex + 1) + "/" + sentences.size() + ")");
+                renderTextRelations(target);
+            }
+        });
+        form.add(new AjaxButton("textRightNext"){
+            @Override
+            protected void onSubmit(AjaxRequestTarget target){
+                super.onSubmit(target);
+                rightSentenceIndex = getNewSentenceIndex(rightSentenceIndex, leftSentenceIndex, "next");
+                LOG.info("Button Click");
+                LOG.info("" + rightSentenceIndex);
+                sentence2.setObject(sentences.get(rightSentenceIndex).getCoveredText());
+                positionString2.setObject("(" + (rightSentenceIndex + 1) + "/" + sentences.size() + ")");
+                renderTextRelations(target);
+            }
+        });
+
+        if(sentences.size() < 2){
+            // Error
+            LOG.error("Not enough sentences");
+            // Sentence Left
+            textLeft = new Label("textLeft", "Dies ist ein linker Text");
+            positionLabel1 = new Label("textLeftPosition", "Position");
+            // Sentence Right
+            textRight = new Label("textRight", "Dies ist ein rechter Text");
+            positionLabel2 = new Label("textRightPosition", "Position");
+        }else{
+            // Sentence Left
+            sentence1 = Model.of(sentences.get(leftSentenceIndex).getCoveredText());
+            positionString1 = Model.of("(" + (leftSentenceIndex + 1) + "/" + sentences.size() + ")");
+            textLeft = new Label("textLeft", sentence1);
+            positionLabel1 = new Label("textLeftPosition", positionString1);
+            positionLabel1.setOutputMarkupId(true);
+            textLeft.setOutputMarkupId(true);
+            // Sentence Right
+            sentence2 = Model.of(sentences.get(rightSentenceIndex).getCoveredText());
+            positionString2 = Model.of("(" + (rightSentenceIndex + 1) + "/" + sentences.size() + ")");
+            textRight = new Label("textRight", sentence2);
+            positionLabel2 = new Label("textRightPosition", positionString2);
+            positionLabel2.setOutputMarkupId(true);
+            textRight.setOutputMarkupId(true);
+        }
+        form.add(positionLabel1);
+        form.add(positionLabel2);
+        form.add(textLeft);
+        form.add(textRight);
+
+
+        // Relation Select
+        //DropDownChoice<Person> ddc =
+        //    new DropDownChoice<Person>("name",
+        //        new PropertyModel<Person>(employee, "managedBy"),
+        //        new LoadableDetachableModel<List<Person>>() {
+        //            @Override
+        //            protected Object load() {
+        //                return Person.getManagers();
+        //            }
+        //        }
+        //    );
+        return form;
+    }
+    public void renderTextRelations(){
+        form = createForm();
+        this.add(form);
+    }
+    public void renderTextRelations(AjaxRequestTarget aTarget){
+        aTarget.add(form);
     }
 
     @Override
@@ -135,16 +292,32 @@ public class HtmlAnnotationEditor
     {
         super.renderHead(aResponse);
 
-        aResponse.render(CssHeaderItem.forReference(AnnotatorJsCssResourceReference.get()));
+        aResponse.render(CssHeaderItem.forReference(TextRelationsCssResourceReference.get()));
         aResponse.render(
-                JavaScriptHeaderItem.forReference(AnnotatorJsJavascriptResourceReference.get()));
-
+            JavaScriptHeaderItem.forReference(TextRelationsJavascriptResourceReference.get()));
         if (getModelObject().getDocument() != null) {
-            aResponse.render(
-                    OnDomReadyHeaderItem.forScript(initAnnotatorJs(vis, storeAdapter)));
+            //aResponse.render(
+            //        OnDomReadyHeaderItem.forScript(initAnnotatorJs(vis, storeAdapter)));
         }
     }
-
+    public void getSentences()
+    {
+        CAS cas;
+        try {
+            cas = getCasProvider().get();
+        }
+        catch (IOException e) {
+            handleError("Unable to load data", e);
+            return;
+        }
+        sentences = new ArrayList<>();
+        LOG.info("SENTENCES:");
+        // Get all Sentences and store them
+        for (AnnotationFS sentence : select(cas, getType(cas, Sentence.class))) {
+            LOG.info(sentence.getCoveredText());
+            sentences.add(sentence);
+        }
+    }
     public String renderHtml()
     {
         CAS cas;
@@ -155,6 +328,10 @@ public class HtmlAnnotationEditor
             handleError("Unable to load data", e);
             return "";
         }
+        LOG.info("Annotation");
+        LOG.info(cas.getDocumentAnnotation().toString());
+        LOG.info("CAS");
+        LOG.info(cas.toString());
         
         try {
             if (cas.select(XmlDocument.class).isEmpty()) {
@@ -252,6 +429,7 @@ public class HtmlAnnotationEditor
     private String initAnnotatorJs(WebComponent aContainer, StoreAdapter aAdapter)
     {
         String callbackUrl = aAdapter.getCallbackUrl().toString();
+        LOG.info(callbackUrl);
         StringBuilder script = new StringBuilder();
         script.append(
                 "var ann = $('#" + aContainer.getMarkupId() + "').annotator({readOnly: false});");
@@ -278,8 +456,8 @@ public class HtmlAnnotationEditor
         // REC: I didn't find a good way of clearing the annotations, so we do it the hard way:
         // - rerender the entire document
         // - re-add all the annotations
-        aTarget.add(vis);
-        aTarget.appendJavaScript(initAnnotatorJs(vis, storeAdapter));
+        //aTarget.add(vis);
+        //aTarget.appendJavaScript(initAnnotatorJs(vis, storeAdapter));
 
 //        aTarget.appendJavaScript(WicketUtil.wrapInTryCatch(String.join("\n",
 //            "$('#" + vis.getMarkupId() + "').data('annotator').plugins.Store._getAnnotations();",
@@ -322,7 +500,6 @@ public class HtmlAnnotationEditor
             String payload = reqParams.getParameterValue("json").toString();
 
             LOG.debug("[" + method + "]: " + payload);
-
             try {
                 // Loading existing annotations
                 if ("GET".equals(method)) {
@@ -360,7 +537,6 @@ public class HtmlAnnotationEditor
         {
             Annotation anno = JSONUtil.getObjectMapper().readValue(payload,
                     Annotation.class);
-
             if (anno.getRanges().isEmpty()) {
                 // Spurious creation event that is to be ignored.
                 return;
@@ -507,7 +683,7 @@ public class HtmlAnnotationEditor
             // Since we cannot pass the JSON directly to AnnotatorJS, we attach it to the HTML
             // element into which AnnotatorJS governs. In our modified annotator-full.js, we pick it
             // up from there and then pass it on to AnnotatorJS to do the rendering.
-            aTarget.prependJavaScript("Wicket.$('" + vis.getMarkupId() + "').temp = " + json + ";");
+            aTarget.prependJavaScript("Wicket.$('" + textRight.getMarkupId() + "').temp = " + json + ";");
         }
 
         private List<Range> toRanges(List<VRange> aRanges)

@@ -1118,7 +1118,7 @@
       <dependency>
         <groupId>org.eclipse.rdf4j</groupId>
         <artifactId>rdf4j-sail-nativerdf</artifactId>
-        <version>${rdf4j.version}</version>
+        <version>2.5.1</version>
       </dependency>
       <dependency>
         <groupId>org.eclipse.rdf4j</groupId>
