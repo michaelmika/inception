@@ -43,6 +43,8 @@ import javax.xml.transform.sax.SAXTransformerFactory;
 import javax.xml.transform.sax.TransformerHandler;
 import javax.xml.transform.stream.StreamResult;
 
+import de.tudarmstadt.ukp.clarin.webanno.model.AnnotationFeature;
+import de.tudarmstadt.ukp.clarin.webanno.model.TagSet;
 import de.tudarmstadt.ukp.inception.htmleditor.textRelationsAnnotator.TextRelationsCssResourceReference;
 import de.tudarmstadt.ukp.inception.htmleditor.textRelationsAnnotator.TextRelationsJavascriptResourceReference;
 import org.apache.commons.lang3.StringUtils;
@@ -70,6 +72,7 @@ import org.apache.wicket.model.PropertyModel;
 import org.apache.wicket.request.IRequestParameters;
 import org.apache.wicket.spring.injection.annot.SpringBean;
 import org.apache.wicket.util.string.Strings;
+import org.dkpro.core.api.metadata.Tagset;
 import org.dkpro.core.api.xml.Cas2SaxEvents;
 import org.dkpro.core.api.xml.type.XmlDocument;
 import org.slf4j.Logger;
@@ -117,12 +120,6 @@ public class HtmlAnnotationEditor
     private static final long serialVersionUID = -3358207848681467993L;
     private static final Logger LOG = LoggerFactory.getLogger(HtmlAnnotationEditor.class);
 
-    private Form<Void> form;
-    private Label textLeft, textRight, positionLabel1, positionLabel2;
-    private AjaxButton textLeftPrevious, textLeftNext, textRightPrevious, textRightNext;
-    private List<AnnotationFS> sentences;
-    private Model<String> sentence1, sentence2, positionString1, positionString2;
-    private int leftSentenceIndex = 0, rightSentenceIndex = 1;
     private StoreAdapter storeAdapter;
 
     private @SpringBean PreRenderer preRenderer;
@@ -130,6 +127,20 @@ public class HtmlAnnotationEditor
     private @SpringBean AnnotationEditorExtensionRegistry extensionRegistry;
     private @SpringBean ColoringService coloringService;
 
+    // eigene Variablen
+    private Form<Void> form;
+    private Label textLeft, textRight, positionLabel1, positionLabel2;
+    private AjaxButton textLeftPrevious, textLeftNext, textRightPrevious, textRightNext;
+    private List<AnnotationFS> sentences;
+    private Model<String> sentence1, sentence2, positionString1, positionString2;
+    private int leftSentenceIndex = 0, rightSentenceIndex = 1;
+
+    private static final String SENTENCE_LAYER_NAME = "webanno.custom.Sentence";
+    private static final String RELATION_LAYER_NAME = "webanno.custom.SentenceRelation";
+    private AnnotationLayer sentenceLayer, relationLayer;
+    private TagSet tagSet;
+
+    // get new Sentence (after navigation) logic
     public int getNewSentenceIndex(int index1, int index2, String method){
         int tmp = 0;
         if(sentences.size() < 2){
@@ -176,7 +187,7 @@ public class HtmlAnnotationEditor
         //add(vis);
         getSentences();
         renderTextRelations();
-
+        getTagset();
 
 
         storeAdapter = new StoreAdapter();
@@ -318,6 +329,61 @@ public class HtmlAnnotationEditor
             sentences.add(sentence);
         }
     }
+    public void getTagset()
+    {
+        //VDocument vdoc = new VDocument();
+
+        //List<Annotation> annotations = new ArrayList<>();
+
+        AnnotatorState state = getModelObject();
+        LOG.info("Annotation Layers");
+        LOG.info(state.getFeatureStates().toString());
+        LOG.info(state.getRememberedArcFeatures().toString());
+        LOG.info(state.getRememberedSpanFeatures().toString());
+        // Render visible (custom) layers
+        //Map<String[], Queue<String>> colorQueues = new HashMap<>();
+        for (AnnotationLayer layer : state.getAnnotationLayers()) {
+            //ColoringStrategy coloringStrategy = coloringService.getStrategy(layer,
+            //    state.getPreferences(), colorQueues);
+            if(layer.getName().equals(SENTENCE_LAYER_NAME)){
+                // Sentence Layer
+                sentenceLayer = layer;
+            }
+            if(layer.getName().equals(RELATION_LAYER_NAME)){
+                // Relation Layer
+                relationLayer = layer;
+                // Get Tagset
+                for (AnnotationFeature feat : annotationService.listSupportedFeatures(layer)) {
+                    // Get Feature(s) -> should be one (with tagset)
+                    LOG.info("Feature: " + feat.getName());
+                    if(feat.getTagset() != null){
+                        tagSet = feat.getTagset();
+                        LOG.info(tagSet.getName());
+                        LOG.info(tagSet.toString());
+                    }
+                }
+            }
+            //LOG.info("Annotation Layer: " + layer.getName());
+            //LOG.info(layer.getId().toString());
+            //LOG.info(state.getPreferences().getColorPerLayer().toString());
+            //if(layer.getAttachFeature() != null ){
+            //    LOG.info(layer.getAttachFeature().getName());
+            //}
+            //if(layer.getAttachFeature() != null && layer.getAttachFeature().getTagset() != null){
+            //    LOG.info(layer.getAttachFeature().getTagset().getName());
+            //}
+
+
+            // If the layer is not included in the rendering, then we skip here - but only after
+            // we have obtained a coloring strategy for this layer and thus secured the layer
+            // color. This ensures that the layer colors do not change depending on the number
+            // of visible layers.
+            //if (!vdoc.getAnnotationLayers().contains(layer)) {
+            //    continue;
+            //}
+        }
+
+    }
     public String renderHtml()
     {
         CAS cas;
@@ -453,11 +519,14 @@ public class HtmlAnnotationEditor
     @Override
     protected void render(AjaxRequestTarget aTarget)
     {
+        // Mika: Wann wird die aufgerufen?
+
         // REC: I didn't find a good way of clearing the annotations, so we do it the hard way:
         // - rerender the entire document
         // - re-add all the annotations
         //aTarget.add(vis);
         //aTarget.appendJavaScript(initAnnotatorJs(vis, storeAdapter));
+
 
 //        aTarget.appendJavaScript(WicketUtil.wrapInTryCatch(String.join("\n",
 //            "$('#" + vis.getMarkupId() + "').data('annotator').plugins.Store._getAnnotations();",
@@ -649,7 +718,10 @@ public class HtmlAnnotationEditor
             for (AnnotationLayer layer : vdoc.getAnnotationLayers()) {
                 ColoringStrategy coloringStrategy = coloringService.getStrategy(layer,
                         state.getPreferences(), colorQueues);
-                
+                LOG.info("Annotation Layers");
+                LOG.info(layer.getName());
+                LOG.info(layer.getId().toString());
+                LOG.info(state.getPreferences().getColorPerLayer().toString());
                 // If the layer is not included in the rendering, then we skip here - but only after
                 // we have obtained a coloring strategy for this layer and thus secured the layer
                 // color. This ensures that the layer colors do not change depending on the number
