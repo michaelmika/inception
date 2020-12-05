@@ -43,8 +43,7 @@ import javax.xml.transform.sax.SAXTransformerFactory;
 import javax.xml.transform.sax.TransformerHandler;
 import javax.xml.transform.stream.StreamResult;
 
-import de.tudarmstadt.ukp.clarin.webanno.model.AnnotationFeature;
-import de.tudarmstadt.ukp.clarin.webanno.model.TagSet;
+import de.tudarmstadt.ukp.clarin.webanno.model.*;
 import de.tudarmstadt.ukp.inception.htmleditor.textRelationsAnnotator.TextRelationsCssResourceReference;
 import de.tudarmstadt.ukp.inception.htmleditor.textRelationsAnnotator.TextRelationsJavascriptResourceReference;
 import org.apache.commons.lang3.StringUtils;
@@ -65,8 +64,11 @@ import org.apache.wicket.markup.html.WebComponent;
 import org.apache.wicket.markup.html.basic.Label;
 import org.apache.wicket.markup.html.form.Button;
 
+import org.apache.wicket.markup.html.form.DropDownChoice;
 import org.apache.wicket.markup.html.form.Form;
+import org.apache.wicket.markup.html.form.FormComponentUpdatingBehavior;
 import org.apache.wicket.model.IModel;
+import org.apache.wicket.model.LoadableDetachableModel;
 import org.apache.wicket.model.Model;
 import org.apache.wicket.model.PropertyModel;
 import org.apache.wicket.request.IRequestParameters;
@@ -99,8 +101,6 @@ import de.tudarmstadt.ukp.clarin.webanno.api.annotation.rendering.PreRenderer;
 import de.tudarmstadt.ukp.clarin.webanno.api.annotation.rendering.model.VDocument;
 import de.tudarmstadt.ukp.clarin.webanno.api.annotation.rendering.model.VRange;
 import de.tudarmstadt.ukp.clarin.webanno.api.annotation.rendering.model.VSpan;
-import de.tudarmstadt.ukp.clarin.webanno.model.AnnotationLayer;
-import de.tudarmstadt.ukp.clarin.webanno.model.Mode;
 import de.tudarmstadt.ukp.clarin.webanno.support.JSONUtil;
 import de.tudarmstadt.ukp.clarin.webanno.support.lambda.LambdaModel;
 import de.tudarmstadt.ukp.clarin.webanno.support.wicket.WicketUtil;
@@ -138,7 +138,9 @@ public class HtmlAnnotationEditor
     private static final String SENTENCE_LAYER_NAME = "webanno.custom.Sentence";
     private static final String RELATION_LAYER_NAME = "webanno.custom.SentenceRelation";
     private AnnotationLayer sentenceLayer, relationLayer;
-    private TagSet tagSet;
+    private TagSet tagSetObject;
+    private List<Tag> tagList;
+    private TextRelation relation;
 
     // get new Sentence (after navigation) logic
     public int getNewSentenceIndex(int index1, int index2, String method){
@@ -186,13 +188,13 @@ public class HtmlAnnotationEditor
         //vis.setEscapeModelStrings(false);
         //add(vis);
         getSentences();
+        getLayersAndTags();
         renderTextRelations();
-        getTagset();
-
 
         storeAdapter = new StoreAdapter();
         add(storeAdapter);
     }
+
     public Form createForm(){
         Form<Void> form = new Form<Void>("textRelationForm");
 
@@ -270,6 +272,50 @@ public class HtmlAnnotationEditor
             positionLabel2 = new Label("textRightPosition", positionString2);
             positionLabel2.setOutputMarkupId(true);
             textRight.setOutputMarkupId(true);
+
+            // Relations
+            relation = new TextRelation(sentence1.getObject(), sentence2.getObject());
+            // DropDown for Right Relation
+            form.add(new DropDownChoice<Tag>(
+                "relationRight",
+                new PropertyModel<Tag>(relation, "relationRight"),
+                new LoadableDetachableModel<List<Tag>>() {
+                    @Override
+                    protected List<Tag> load() {
+                        return tagList;
+                    }
+                }
+            ).add(new FormComponentUpdatingBehavior() {
+                /**
+                 * Called when a option is selected of a dropdown list.
+                 */
+                protected void onUpdate() {
+                    Tag tag = (Tag) getFormComponent().getModelObject();
+                    relation.setRelationRight(tag);
+                    LOG.info("Relation Right Choice: " + tag.getName());
+                }
+            }));
+            // DropDown for Left Relation
+            form.add(new DropDownChoice<Tag>(
+                "relationLeft",
+                new PropertyModel<Tag>(relation, "relationLeft"),
+                new LoadableDetachableModel<List<Tag>>() {
+                    @Override
+                    protected List<Tag> load() {
+                        return tagList;
+                    }
+                }
+            ).add(new FormComponentUpdatingBehavior() {
+                /**
+                 * Called when a option is selected of a dropdown list.
+                 */
+                protected void onUpdate() {
+                    Tag tag = (Tag) getFormComponent().getModelObject();
+                    relation.setRelationLeft(tag);
+                    LOG.info("Relation Left Choice: " + tag.getName());
+                }
+            }));
+
         }
         form.add(positionLabel1);
         form.add(positionLabel2);
@@ -277,17 +323,7 @@ public class HtmlAnnotationEditor
         form.add(textRight);
 
 
-        // Relation Select
-        //DropDownChoice<Person> ddc =
-        //    new DropDownChoice<Person>("name",
-        //        new PropertyModel<Person>(employee, "managedBy"),
-        //        new LoadableDetachableModel<List<Person>>() {
-        //            @Override
-        //            protected Object load() {
-        //                return Person.getManagers();
-        //            }
-        //        }
-        //    );
+
         return form;
     }
     public void renderTextRelations(){
@@ -329,7 +365,35 @@ public class HtmlAnnotationEditor
             sentences.add(sentence);
         }
     }
-    public void getTagset()
+    public String renderHtml()
+    {
+        CAS cas;
+        try {
+            cas = getCasProvider().get();
+        }
+        catch (IOException e) {
+            handleError("Unable to load data", e);
+            return "";
+        }
+        LOG.info("Annotation");
+        LOG.info(cas.getDocumentAnnotation().toString());
+        LOG.info("CAS");
+        LOG.info(cas.toString());
+
+        try {
+            if (cas.select(XmlDocument.class).isEmpty()) {
+                return renderLegacyHtml(cas);
+            }
+            else {
+                return renderHtmlDocumentStructure(cas);
+            }
+        }
+        catch (Exception e) {
+            handleError("Unable to render data", e);
+            return "";
+        }
+    }
+    public void getLayersAndTags()
     {
         //VDocument vdoc = new VDocument();
 
@@ -357,9 +421,13 @@ public class HtmlAnnotationEditor
                     // Get Feature(s) -> should be one (with tagset)
                     LOG.info("Feature: " + feat.getName());
                     if(feat.getTagset() != null){
-                        tagSet = feat.getTagset();
-                        LOG.info(tagSet.getName());
-                        LOG.info(tagSet.toString());
+                        tagSetObject = feat.getTagset();
+                        tagList = annotationService.listTags(tagSetObject);
+                        LOG.info("TagList: " + tagSetObject.getName());
+                        for (Tag tag : tagList) {
+                            LOG.info(tag.getName());
+                        }
+
                     }
                 }
             }
@@ -384,35 +452,7 @@ public class HtmlAnnotationEditor
         }
 
     }
-    public String renderHtml()
-    {
-        CAS cas;
-        try {
-            cas = getCasProvider().get();
-        }
-        catch (IOException e) {
-            handleError("Unable to load data", e);
-            return "";
-        }
-        LOG.info("Annotation");
-        LOG.info(cas.getDocumentAnnotation().toString());
-        LOG.info("CAS");
-        LOG.info(cas.toString());
-        
-        try {
-            if (cas.select(XmlDocument.class).isEmpty()) {
-                return renderLegacyHtml(cas);
-            }
-            else {
-                return renderHtmlDocumentStructure(cas);
-            }
-        }
-        catch (Exception e) {
-            handleError("Unable to render data", e);
-            return "";
-        }
-    }
-    
+
     private String renderHtmlDocumentStructure(CAS aCas)
         throws IOException, TransformerConfigurationException, CASException, SAXException
     {
