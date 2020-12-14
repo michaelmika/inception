@@ -44,6 +44,7 @@ import javax.xml.transform.sax.SAXTransformerFactory;
 import javax.xml.transform.sax.TransformerHandler;
 import javax.xml.transform.stream.StreamResult;
 
+import de.tudarmstadt.ukp.clarin.webanno.api.annotation.model.Selection;
 import de.tudarmstadt.ukp.clarin.webanno.model.*;
 import de.tudarmstadt.ukp.inception.htmleditor.textRelationsAnnotator.TextRelationsCssResourceReference;
 import de.tudarmstadt.ukp.inception.htmleditor.textRelationsAnnotator.TextRelationsJavascriptResourceReference;
@@ -51,10 +52,12 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.uima.cas.CAS;
 import org.apache.uima.cas.CASException;
+import org.apache.uima.cas.CASRuntimeException;
 import org.apache.uima.cas.text.AnnotationFS;
 import org.apache.wicket.Component;
 import org.apache.wicket.ajax.AbstractDefaultAjaxBehavior;
 import org.apache.wicket.ajax.AjaxRequestTarget;
+import org.apache.wicket.ajax.form.AjaxFormComponentUpdatingBehavior;
 import org.apache.wicket.ajax.markup.html.form.AjaxButton;
 import org.apache.wicket.feedback.IFeedback;
 import org.apache.wicket.markup.head.CssHeaderItem;
@@ -73,6 +76,7 @@ import org.apache.wicket.model.LoadableDetachableModel;
 import org.apache.wicket.model.Model;
 import org.apache.wicket.model.PropertyModel;
 import org.apache.wicket.request.IRequestParameters;
+import org.apache.wicket.request.cycle.RequestCycle;
 import org.apache.wicket.spring.injection.annot.SpringBean;
 import org.apache.wicket.util.string.Strings;
 import org.dkpro.core.api.metadata.Tagset;
@@ -205,6 +209,7 @@ public class HtmlAnnotationEditor
             protected void onSubmit(AjaxRequestTarget target){
                 super.onSubmit(target);
                 leftSentenceIndex = getNewSentenceIndex(leftSentenceIndex, rightSentenceIndex, "previous");
+
                 LOG.info("Button Click");
                 LOG.info("" + leftSentenceIndex);
                 sentence1.setObject(sentences.get(leftSentenceIndex).getCoveredText());
@@ -286,18 +291,18 @@ public class HtmlAnnotationEditor
                         return tagList;
                     }
                 }
-            ).add(new FormComponentUpdatingBehavior() {
+            ).add(new AjaxFormComponentUpdatingBehavior("change") {
                 /**
                  * Called when a option is selected of a dropdown list.
                  */
-                protected void onUpdate() {
+                protected void onUpdate(AjaxRequestTarget aTarget) {
                     Tag tag = (Tag) getFormComponent().getModelObject();
                     relation.setRelationRight(tag);
                     LOG.info("Relation Right Choice: " + tag.getName());
                     // Annotate both active Sentences
                     createSentenceAnnotation();
                     // Annotate relation
-                    createRelationAnnotation(tag, leftSentenceIndex, rightSentenceIndex);
+                    createRelationAnnotation(aTarget, tag);
                 }
             }));
             // DropDown for Left Relation
@@ -310,14 +315,18 @@ public class HtmlAnnotationEditor
                         return tagList;
                     }
                 }
-            ).add(new FormComponentUpdatingBehavior() {
+            ).add(new AjaxFormComponentUpdatingBehavior("change") {
                 /**
                  * Called when a option is selected of a dropdown list.
                  */
-                protected void onUpdate() {
+                protected void onUpdate(AjaxRequestTarget aTarget) {
                     Tag tag = (Tag) getFormComponent().getModelObject();
                     relation.setRelationLeft(tag);
                     LOG.info("Relation Left Choice: " + tag.getName());
+                    // Annotate both active Sentences
+                    createSentenceAnnotation();
+                    // Annotate relation
+                    createRelationAnnotation(aTarget, tag);
                 }
             }));
 
@@ -536,13 +545,26 @@ public class HtmlAnnotationEditor
         }
     }
     // Creates a Relation Annotation from aSentenceIndex to bSentenceIndex with tag
-    private void createRelationAnnotation(Tag aTag, int aSentenceIndex, int bSentenceIndex){
+    private void createRelationAnnotation(AjaxRequestTarget aTarget, Tag aTag){
         try {
-            CAS cas = getCasProvider().get();
-            //cas.createAnnotation(getType(cas, RELATION_LAYER_NAME));
+            CAS aCas = getCasProvider().get();
+            // Get Sentences
+            AnnotationFS sentence1 = sentences.get(leftSentenceIndex);
+            AnnotationFS sentence2 = sentences.get(rightSentenceIndex);
+            // Gets the Origin & Target of Type SENTENCE_LAYER_NAME
+            AnnotationFS originFs = aCas.createAnnotation(getType(aCas, SENTENCE_LAYER_NAME), sentence1.getBegin(), sentence1.getEnd());
+            AnnotationFS targetFs = aCas.createAnnotation(getType(aCas, SENTENCE_LAYER_NAME), sentence2.getBegin(), sentence2.getEnd());
+            // Get state
+            AnnotatorState state = getModelObject();
+            // Select
+            Selection selection = state.getSelection();
+            selection.selectArc(VID.NONE_ID, originFs, targetFs);
+            // Create
+            getActionHandler().actionCreateOrUpdate(aTarget, aCas);
         }
-        catch (IOException e) {
-            handleError("Unable to create span annotation", e);
+        catch (IOException | AnnotationException | CASRuntimeException e)
+        {
+            handleError("Unable to create relation annotation", e);
         }
     }
 
