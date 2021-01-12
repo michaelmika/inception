@@ -53,36 +53,51 @@
     /*
         Arrows
      */
-.text-relation .arrow {
-    border: solid black;
+.relation .arrow {
+    border: solid #c6c6c6;
+    -webkit-transition: all 0.5s ease-out;
+    -moz-transition: all 0.5s ease-out;
+    -o-transition: all 0.5s ease-out;
+    transition: all 0.5s ease-out;
     border-width: 0 4px 4px 0;
     display: inline-block;
     padding: 5px;
 }
 
-.text-relation .arrow.right {
+.relation .arrow.right {
     transform: rotate(-45deg);
     -webkit-transform: rotate(-45deg);
     margin-left: -12px;
 }
 
-.text-relation .arrow.left {
+.relation .arrow.left {
     transform: rotate(135deg);
     -webkit-transform: rotate(135deg);
     margin-right: -12px;
 }
 
-.text-relation .arrow.up {
+.relation .arrow.up {
     transform: rotate(-135deg);
     -webkit-transform: rotate(-135deg);
 }
 
-.text-relation .arrow.down {
+.relation .arrow.down {
     transform: rotate(45deg);
     -webkit-transform: rotate(45deg);
 }
-.text-relation .arrow-line {
+.relation .arrow-line {
     flex: 1;
     height: 4px;
-    background-color: black;
+    background-color: #C6C6C6;
+    -webkit-transition: background-color 0.5s ease-out;
+    -moz-transition: background-color 0.5s ease-out;
+    -o-transition: background-color 0.5s ease-out;
+    transition: background-color 0.5s ease-out;
+}
+.relation.active .arrow-line {
+    background-color: #2e8b57;
+}
+.relation.active .arrow {
+    border: solid #2e8b57;
+    border-width: 0 4px 4px 0;
 }
