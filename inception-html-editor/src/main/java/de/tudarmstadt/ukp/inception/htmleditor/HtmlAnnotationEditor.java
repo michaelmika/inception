@@ -20,6 +20,7 @@ package de.tudarmstadt.ukp.inception.htmleditor;
 import static de.tudarmstadt.ukp.clarin.webanno.api.WebAnnoConst.CHAIN_TYPE;
 import static de.tudarmstadt.ukp.clarin.webanno.api.annotation.model.VID.NONE_ID;
 import static de.tudarmstadt.ukp.clarin.webanno.api.annotation.util.TypeUtil.getUiLabelText;
+import static de.tudarmstadt.ukp.clarin.webanno.api.annotation.util.WebAnnoCasUtil.getAddr;
 import static de.tudarmstadt.ukp.clarin.webanno.api.annotation.util.WebAnnoCasUtil.selectByAddr;
 import static javax.xml.transform.OutputKeys.INDENT;
 import static javax.xml.transform.OutputKeys.METHOD;
@@ -43,6 +44,7 @@ import javax.xml.transform.stream.StreamResult;
 
 import de.tudarmstadt.ukp.clarin.webanno.api.WebAnnoConst;
 import org.apache.uima.cas.Feature;
+import org.apache.uima.fit.util.CasUtil;
 import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.jcas.tcas.Annotation;
 import de.tudarmstadt.ukp.clarin.webanno.api.annotation.adapter.SpanAdapter;
@@ -608,9 +610,7 @@ public class HtmlAnnotationEditor
             AnnotationFS governorFS = (AnnotationFS) potentialRelation.getFeatureValue(governorFeat);
             // Label
             Feature label = potentialRelation.getType().getFeatureByBaseName("label");
-            LOG.info(label.toString());
             String labelString = potentialRelation.getFeatureValueAsString(label);
-            LOG.info(labelString);
             if(
                 isSameSentence(leftSentence, dependentFS)
                     && isSameSentence(rightSentence, governorFS)
@@ -633,6 +633,35 @@ public class HtmlAnnotationEditor
                     }
                 }
             }
+        }
+        return result;
+    }
+    // get Relation Annotation if Exists
+    private Annotation getRelationAnnotation(
+        AnnotationFS originFS, AnnotationFS targetFS
+    ){
+        Annotation result = null;
+        try{
+            CAS cas = getCasProvider().get();
+            List<Annotation> selectedAnnoList = cas.<Annotation>select(getType(cas,RELATION_LAYER_NAME))
+                .coveredBy(targetFS).asList();
+            for (Annotation potentialRelation : selectedAnnoList) {
+                // Dependent
+                Feature dependentFeat = potentialRelation.getType().getFeatureByBaseName("Dependent");
+                AnnotationFS dependentFS = (AnnotationFS) potentialRelation.getFeatureValue(dependentFeat);
+                // Governor
+                Feature governorFeat = potentialRelation.getType().getFeatureByBaseName("Governor");
+                AnnotationFS governorFS = (AnnotationFS) potentialRelation.getFeatureValue(governorFeat);
+                if(
+                    isSameSentence(targetFS, dependentFS)
+                        && isSameSentence(originFS, governorFS)
+                ){
+                    result = potentialRelation;
+                }
+            }
+
+        }catch (IOException e){
+            handleError("Unable to create span annotation", e);
         }
         return result;
     }
@@ -689,6 +718,7 @@ public class HtmlAnnotationEditor
             handleError("Unable to create span annotation", e);
         }
     }
+
     // Creates a Relation Annotation from aSentenceIndex to bSentenceIndex with tag
     private void createRelationAnnotation(Tag aTag, int originIndex, int targetIndex){
         try {
@@ -718,8 +748,13 @@ public class HtmlAnnotationEditor
             Supplier supplier = new RelationFeatureSupplier(relationLayer);
             RelationAdapter adapter = (RelationAdapter) layerSupportRegistry.getLayerSupport(relationLayer)
                 .createAdapter(relationLayer, supplier);
-            // @TODO: DETECT if Relation is there and adapter.delete(); if so
-            // Get VID
+            // Delete if prev Relation is detected
+            Annotation prevAnno = getRelationAnnotation(originFS, targetFS);
+            if(prevAnno != null){
+                VID vid = new VID(WebAnnoCasUtil.getAddr(prevAnno));
+                adapter.delete(doc, username, aCas, vid);
+            }
+            // Create new Relation
             AnnotationFS annotation = adapter.add(doc, username, originFS, targetFS, aCas);
             adapter.setFeatureValue(doc, username, aCas, WebAnnoCasUtil.getAddr(annotation), feature, aTag.getName());
             AnnotationPageBase annotationPage = findParent(AnnotationPageBase.class);
