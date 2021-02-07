@@ -70,6 +70,7 @@ import org.apache.wicket.ajax.form.AjaxFormComponentUpdatingBehavior;
 import org.apache.wicket.ajax.markup.html.form.AjaxButton;
 import org.apache.wicket.behavior.AttributeAppender;
 import org.apache.wicket.feedback.IFeedback;
+import org.apache.wicket.markup.ComponentTag;
 import org.apache.wicket.markup.head.CssHeaderItem;
 import org.apache.wicket.markup.head.IHeaderResponse;
 import org.apache.wicket.markup.head.JavaScriptHeaderItem;
@@ -160,7 +161,10 @@ public class HtmlAnnotationEditor
     private AnnotationFeature feature;
     private TextRelation relation;
 
+    private boolean preAnnotated = false;
+
     // get new Sentence (after navigation) logic
+    // PREANNOTATED!
     public int getNewSentenceIndex(int index1, int index2, String method){
         int tmp = 0;
         if(sentences.size() < 2){
@@ -203,23 +207,52 @@ public class HtmlAnnotationEditor
             AnnotationActionHandler aActionHandler, CasProvider aCasProvider)
     {
         super(aId, aModel, aActionHandler, aCasProvider);
+        getDocAttributes();
         getSentences();
         getLayersAndTags();
         renderTextRelations();
     }
+    public String getSegmentPositionString(int index)
+    {
+        String result = "";
+        if(preAnnotated){
 
+        }else{
+            // Return String
+            result = "(" + (index + 1) + "/" + sentences.size() + ")";
+        }
+        return result;
+    }
+    public List<AnnotationFS> getAllRelationsFromTargetSegment(AnnotationFS segment)
+    {
+        List<AnnotationFS> result = new ArrayList<AnnotationFS>();
+
+        return result;
+    }
     public Form createForm(){
         Form<Void> form = new Form<Void>("textRelationForm");
-
+        // Add Meta Data Information
+        Model leftIndexModel = new Model<Integer>(leftSentenceIndex);
+        Model rightIndexModel = new Model<Integer>(rightSentenceIndex);
+        if(preAnnotated){
+            LOG.info("Sentences: ");
+            LOG.info(sentences.toString());
+            MetaDataPanel metaDataPanel_left = new MetaDataPanel("metaData_left", sentences, leftIndexModel);
+            MetaDataPanel metaDataPanel_right = new MetaDataPanel("metaData_right", sentences, rightIndexModel);
+            form.add(metaDataPanel_left);
+            form.add(metaDataPanel_right);
+        }
         // Navigation Buttons
         form.add(new AjaxButton("textLeftPrevious"){
             @Override
             protected void onSubmit(AjaxRequestTarget target){
                 super.onSubmit(target);
                 leftSentenceIndex = getNewSentenceIndex(leftSentenceIndex, rightSentenceIndex, "previous");
+                leftIndexModel.setObject(leftSentenceIndex);
                 sentence1.setObject(sentences.get(leftSentenceIndex).getCoveredText());
                 positionString1.setObject("(" + (leftSentenceIndex + 1) + "/" + sentences.size() + ")");
                 renderTextRelations(target);
+
             }
         });
         form.add(new AjaxButton("textLeftNext"){
@@ -227,6 +260,7 @@ public class HtmlAnnotationEditor
             protected void onSubmit(AjaxRequestTarget target){
                 super.onSubmit(target);
                 leftSentenceIndex = getNewSentenceIndex(leftSentenceIndex, rightSentenceIndex, "next");
+                leftIndexModel.setObject(leftSentenceIndex);
                 sentence1.setObject(sentences.get(leftSentenceIndex).getCoveredText());
                 positionString1.setObject("(" + (leftSentenceIndex + 1) + "/" + sentences.size() + ")");
                 renderTextRelations(target);
@@ -237,6 +271,7 @@ public class HtmlAnnotationEditor
             protected void onSubmit(AjaxRequestTarget target){
                 super.onSubmit(target);
                 rightSentenceIndex = getNewSentenceIndex(rightSentenceIndex, leftSentenceIndex, "previous");
+                rightIndexModel.setObject(rightSentenceIndex);
                 sentence2.setObject(sentences.get(rightSentenceIndex).getCoveredText());
                 positionString2.setObject("(" + (rightSentenceIndex + 1) + "/" + sentences.size() + ")");
                 renderTextRelations(target);
@@ -247,6 +282,7 @@ public class HtmlAnnotationEditor
             protected void onSubmit(AjaxRequestTarget target){
                 super.onSubmit(target);
                 rightSentenceIndex = getNewSentenceIndex(rightSentenceIndex, leftSentenceIndex, "next");
+                rightIndexModel.setObject(rightSentenceIndex);
                 sentence2.setObject(sentences.get(rightSentenceIndex).getCoveredText());
                 positionString2.setObject("(" + (rightSentenceIndex + 1) + "/" + sentences.size() + ")");
                 renderTextRelations(target);
@@ -390,12 +426,28 @@ public class HtmlAnnotationEditor
         sentences = new ArrayList<>();
         LOG.info("SENTENCES:");
         // Get all Sentences and store them
-        for (AnnotationFS sentence : select(cas, getType(cas, Sentence.class))) {
-            LOG.info(sentence.getCoveredText());
-            sentences.add(sentence);
+        if(preAnnotated){
+            // Get Sentences / Spans from pre-annotated Source File
+            for (AnnotationFS sentence : select(cas, getType(cas, SENTENCE_LAYER_NAME))) {
+                LOG.info(sentence.getCoveredText());
+                sentences.add(sentence);
+            }
+            if(sentences.size() < 1){
+                // No Sentences found -> Try to use normal Modus / get Sentences
+                preAnnotated = false;
+            }
         }
+        if(!preAnnotated){
+            // Get Sentences
+            for (AnnotationFS sentence : select(cas, getType(cas, Sentence.class))) {
+                LOG.info(sentence.getCoveredText());
+                sentences.add(sentence);
+            }
+        }
+
     }
     // get the Annotation of Sentence.class - location somewhere betwen start & end
+    // NOT USED
     public AnnotationFS getSentenceAnnotation(int location){
         CAS cas;
         AnnotationFS result = null;
@@ -429,6 +481,15 @@ public class HtmlAnnotationEditor
             return null;
         }
         return result;
+    }
+    // Check if the Doc is a pre-annotated XMI file
+    public void getDocAttributes()
+    {
+        AnnotatorState state = getModelObject();
+        if(state.getDocument().getFormat().contains("xmi")){
+            // Pre-Annotated File
+            preAnnotated = true;
+        }
     }
     public void getLayersAndTags()
     {
@@ -575,8 +636,8 @@ public class HtmlAnnotationEditor
             List<Annotation> selectedAnnoList_Right = cas.<Annotation>select(getType(cas,RELATION_LAYER_NAME))
                 .coveredBy(rightSentenceAnnoFS).asList();
             LOG.info("Detected annos");
-            Tag result1[] = getRelationTags(selectedAnnoList_Left, leftSentenceAnnoFS, rightSentenceAnnoFS);
-            Tag result2[] = getRelationTags(selectedAnnoList_Right, leftSentenceAnnoFS, rightSentenceAnnoFS);
+            Tag[] result1 = getRelationTags(selectedAnnoList_Left, leftSentenceAnnoFS, rightSentenceAnnoFS);
+            Tag[] result2 = getRelationTags(selectedAnnoList_Right, leftSentenceAnnoFS, rightSentenceAnnoFS);
             // Update Relation
             relation.setSentences(sentence1.getObject(), sentence2.getObject());
             Tag leftRelation = (
@@ -730,8 +791,12 @@ public class HtmlAnnotationEditor
             AnnotationFS sentence1 = sentences.get(originIndex);
             AnnotationFS sentence2 = sentences.get(targetIndex);
             //List selectedAnno = aCas.select(getType(aCas, SENTENCE_LAYER_NAME)).coveredBy(sentence1).asList();
-            AnnotationFS originFS = getSentenceLayerAnnotation(sentence1);
-            AnnotationFS targetFS = getSentenceLayerAnnotation(sentence2);
+            AnnotationFS originFS = sentence1;
+            AnnotationFS targetFS = sentence2;
+            if(!preAnnotated){
+                originFS = getSentenceLayerAnnotation(sentence1);
+                targetFS = getSentenceLayerAnnotation(sentence2);
+            }
 
             // Gets the Origin & Target of Type SENTENCE_LAYER_NAME
             //AnnotationFS originFs = aCas.createAnnotation(getType(aCas, SENTENCE_LAYER_NAME), sentence1.getBegin(), sentence1.getEnd());
