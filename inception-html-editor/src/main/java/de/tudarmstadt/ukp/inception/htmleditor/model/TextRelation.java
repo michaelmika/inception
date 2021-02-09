@@ -1,4 +1,4 @@
-package de.tudarmstadt.ukp.inception.htmleditor;
+package de.tudarmstadt.ukp.inception.htmleditor.model;
 
 import de.tudarmstadt.ukp.clarin.webanno.model.Tag;
 

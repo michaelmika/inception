@@ -17,120 +17,67 @@
  */
 package de.tudarmstadt.ukp.inception.htmleditor;
 
-import static de.tudarmstadt.ukp.clarin.webanno.api.WebAnnoConst.CHAIN_TYPE;
-import static de.tudarmstadt.ukp.clarin.webanno.api.annotation.model.VID.NONE_ID;
 import static de.tudarmstadt.ukp.clarin.webanno.api.annotation.util.TypeUtil.getUiLabelText;
-import static de.tudarmstadt.ukp.clarin.webanno.api.annotation.util.WebAnnoCasUtil.getAddr;
-import static de.tudarmstadt.ukp.clarin.webanno.api.annotation.util.WebAnnoCasUtil.selectByAddr;
-import static javax.xml.transform.OutputKeys.INDENT;
-import static javax.xml.transform.OutputKeys.METHOD;
-import static javax.xml.transform.OutputKeys.OMIT_XML_DECLARATION;
 import static org.apache.uima.fit.util.CasUtil.getType;
 import static org.apache.uima.fit.util.CasUtil.select;
 import static org.apache.uima.fit.util.CasUtil.selectCovered;
 
 import java.io.IOException;
-import java.io.StringWriter;
-import java.io.Writer;
 import java.util.*;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
-import javax.xml.transform.TransformerConfigurationException;
-import javax.xml.transform.TransformerFactory;
-import javax.xml.transform.sax.SAXTransformerFactory;
-import javax.xml.transform.sax.TransformerHandler;
-import javax.xml.transform.stream.StreamResult;
-
-import de.tudarmstadt.ukp.clarin.webanno.api.WebAnnoConst;
+import de.tudarmstadt.ukp.inception.htmleditor.meta.MetaDataPanel;
+import de.tudarmstadt.ukp.inception.htmleditor.model.Pair;
+import de.tudarmstadt.ukp.inception.htmleditor.model.RelationFeatureSupplier;
+import de.tudarmstadt.ukp.inception.htmleditor.model.TextRelation;
+import de.tudarmstadt.ukp.inception.htmleditor.progress.ProgressPanel;
 import org.apache.uima.cas.Feature;
-import org.apache.uima.fit.util.CasUtil;
-import org.apache.uima.fit.util.JCasUtil;
 import org.apache.uima.jcas.tcas.Annotation;
 import de.tudarmstadt.ukp.clarin.webanno.api.annotation.adapter.SpanAdapter;
 import de.tudarmstadt.ukp.clarin.webanno.api.annotation.layer.LayerSupportRegistry;
-import de.tudarmstadt.ukp.clarin.webanno.api.annotation.model.Selection;
 import de.tudarmstadt.ukp.clarin.webanno.api.annotation.util.WebAnnoCasUtil;
 import de.tudarmstadt.ukp.clarin.webanno.model.*;
 import de.tudarmstadt.ukp.inception.htmleditor.textRelationsAnnotator.TextRelationsCssResourceReference;
 import de.tudarmstadt.ukp.inception.htmleditor.textRelationsAnnotator.TextRelationsJavascriptResourceReference;
 import de.tudarmstadt.ukp.clarin.webanno.api.annotation.page.AnnotationPageBase;
 import de.tudarmstadt.ukp.clarin.webanno.api.annotation.adapter.RelationAdapter;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.uima.cas.CAS;
-import org.apache.uima.cas.CASException;
 import org.apache.uima.cas.CASRuntimeException;
 import org.apache.uima.cas.text.AnnotationFS;
-import org.apache.uima.jcas.cas.TOP;
-import org.apache.wicket.Component;
-import org.apache.wicket.ajax.AbstractDefaultAjaxBehavior;
 import org.apache.wicket.ajax.AjaxRequestTarget;
 import org.apache.wicket.ajax.form.AjaxFormComponentUpdatingBehavior;
 import org.apache.wicket.ajax.markup.html.form.AjaxButton;
 import org.apache.wicket.behavior.AttributeAppender;
 import org.apache.wicket.feedback.IFeedback;
-import org.apache.wicket.markup.ComponentTag;
 import org.apache.wicket.markup.head.CssHeaderItem;
 import org.apache.wicket.markup.head.IHeaderResponse;
 import org.apache.wicket.markup.head.JavaScriptHeaderItem;
-import org.apache.wicket.markup.head.OnDomReadyHeaderItem;
-import org.apache.wicket.markup.html.WebComponent;
 import org.apache.wicket.markup.html.WebMarkupContainer;
 import org.apache.wicket.markup.html.basic.Label;
-import org.apache.wicket.markup.html.form.Button;
 
 import org.apache.wicket.markup.html.form.DropDownChoice;
 import org.apache.wicket.markup.html.form.Form;
-import org.apache.wicket.markup.html.form.FormComponentUpdatingBehavior;
 import org.apache.wicket.model.IModel;
 import org.apache.wicket.model.LoadableDetachableModel;
 import org.apache.wicket.model.Model;
 import org.apache.wicket.model.PropertyModel;
-import org.apache.wicket.model.CompoundPropertyModel;
-import org.apache.wicket.request.IRequestParameters;
-import org.apache.wicket.request.cycle.RequestCycle;
 import org.apache.wicket.spring.injection.annot.SpringBean;
-import org.apache.wicket.util.string.Strings;
-import org.checkerframework.checker.units.qual.A;
-import org.dkpro.core.api.metadata.Tagset;
-import org.dkpro.core.api.xml.Cas2SaxEvents;
-import org.dkpro.core.api.xml.type.XmlDocument;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.xml.sax.SAXException;
-
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.databind.JsonMappingException;
 
 import de.tudarmstadt.ukp.clarin.webanno.api.AnnotationSchemaService;
 import de.tudarmstadt.ukp.clarin.webanno.api.CasProvider;
 import de.tudarmstadt.ukp.clarin.webanno.api.annotation.AnnotationEditorBase;
 import de.tudarmstadt.ukp.clarin.webanno.api.annotation.AnnotationEditorExtensionRegistry;
 import de.tudarmstadt.ukp.clarin.webanno.api.annotation.action.AnnotationActionHandler;
-import de.tudarmstadt.ukp.clarin.webanno.api.annotation.adapter.TypeAdapter;
-import de.tudarmstadt.ukp.clarin.webanno.api.annotation.coloring.ColoringRules;
-import de.tudarmstadt.ukp.clarin.webanno.api.annotation.coloring.ColoringRulesTrait;
 import de.tudarmstadt.ukp.clarin.webanno.api.annotation.coloring.ColoringService;
-import de.tudarmstadt.ukp.clarin.webanno.api.annotation.coloring.ColoringStrategy;
 import de.tudarmstadt.ukp.clarin.webanno.api.annotation.exception.AnnotationException;
 import de.tudarmstadt.ukp.clarin.webanno.api.annotation.model.AnnotatorState;
 import de.tudarmstadt.ukp.clarin.webanno.api.annotation.model.VID;
 import de.tudarmstadt.ukp.clarin.webanno.api.annotation.rendering.PreRenderer;
-import de.tudarmstadt.ukp.clarin.webanno.api.annotation.rendering.model.VDocument;
-import de.tudarmstadt.ukp.clarin.webanno.api.annotation.rendering.model.VRange;
-import de.tudarmstadt.ukp.clarin.webanno.api.annotation.rendering.model.VSpan;
 import de.tudarmstadt.ukp.clarin.webanno.support.JSONUtil;
-import de.tudarmstadt.ukp.clarin.webanno.support.lambda.LambdaModel;
-import de.tudarmstadt.ukp.clarin.webanno.support.wicket.WicketUtil;
-import de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Div;
-import de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Heading;
-import de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Paragraph;
 import de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Sentence;
-import de.tudarmstadt.ukp.dkpro.core.api.segmentation.type.Token;
-import de.tudarmstadt.ukp.inception.htmleditor.annotatorjs.model.Range;
-import de.tudarmstadt.ukp.inception.htmleditor.annotatorjs.resources.AnnotatorJsCssResourceReference;
-import de.tudarmstadt.ukp.inception.htmleditor.annotatorjs.resources.AnnotatorJsJavascriptResourceReference;
 
 public class HtmlAnnotationEditor
     extends AnnotationEditorBase
@@ -153,53 +100,155 @@ public class HtmlAnnotationEditor
     private Model<String> sentence1, sentence2, positionString1, positionString2;
     private int leftSentenceIndex = 0, rightSentenceIndex = 1;
 
-    private static final String SENTENCE_LAYER_NAME = "webanno.custom.Sentence";
-    private static final String RELATION_LAYER_NAME = "webanno.custom.SentenceRelation";
+    public static final String SENTENCE_LAYER_NAME = "webanno.custom.Sentence";
+    public static final String RELATION_LAYER_NAME = "webanno.custom.SentenceRelation";
+    public static final String EMPTY_FEATURE = "unset";
     private AnnotationLayer sentenceLayer, relationLayer;
     private TagSet tagSetObject;
     private List<Tag> tagList;
     private AnnotationFeature feature;
     private TextRelation relation;
 
+    private List<Pair<Integer, Integer>> possiblePairs;
+    private HashSet<Integer> alreadyTaggedPairs = new HashSet<>();
+    private int pairIndex = 0;
+
+    private ProgressPanel progressPanel;
+
     private boolean preAnnotated = false;
 
-    // get new Sentence (after navigation) logic
-    // PREANNOTATED!
-    public int getNewSentenceIndex(int index1, int index2, String method){
-        int tmp = 0;
-        if(sentences.size() < 2){
-            return tmp;
-        }
-        switch (method){
+    public Pair<Integer, Integer> getNewPair(String method){
+        switch (method) {
             case "next":
-                LOG.info("Method next");
-                if (index1 + 1 > sentences.size() - 1) {
-                    tmp = 0;
+                if(pairIndex + 1 < possiblePairs.size()){
+                    pairIndex = pairIndex + 1;
                 }else{
-                    tmp = index1 + 1;
-                }
-                if (tmp == index2) {
-                    tmp = getNewSentenceIndex(tmp, index2, method);
+                    pairIndex = 0;
                 }
                 break;
             case "previous":
-                LOG.info("Method previous");
-                if (index1 - 1 < 0) {
-                    tmp = sentences.size() - 1;
+                if(pairIndex - 1 >= 0){
+                    pairIndex = pairIndex - 1;
                 }else{
-                    tmp = index1 - 1;
-                }
-                if (tmp == index2) {
-                    tmp = getNewSentenceIndex(tmp, index2, method);
+                    pairIndex = possiblePairs.size() - 1;
                 }
                 break;
             default:
                 break;
         }
-        return tmp;
+        return possiblePairs.get(pairIndex);
     }
 
-    public boolean isSameSentence(AnnotationFS anno1, AnnotationFS anno2){
+    public Set<Pair<Integer, Integer>> getPossiblePairItems()
+    {
+        Set<Pair<Integer, Integer>> result = new LinkedHashSet<>();
+        LOG.info("PAIRS:");
+        for (int i = 0; i < sentences.size(); i++){
+            Set<Integer> pairItems = getPossiblePairItems(i);
+            Iterator<Integer> itr = pairItems.iterator();
+            while(itr.hasNext()){
+                int b = itr.next();
+                if(i != b){
+                    Pair<Integer, Integer> relation = new Pair<>(i, b);
+                    result.add(relation);
+                    // Check if already annotated
+                    AnnotationFS a1 = getRelationAnnotation(sentences.get(i), sentences.get(b));
+                    AnnotationFS a2 = getRelationAnnotation(sentences.get(b), sentences.get(i));
+                    if(a1 != null && a2 != null){
+                        Feature label1 = a1.getType().getFeatureByBaseName("label");
+                        Feature label2 = a2.getType().getFeatureByBaseName("label");
+                        String label_string1 = a1.getFeatureValueAsString(label1);
+                        String label_string2 = a1.getFeatureValueAsString(label2);
+                        if(
+                            !label_string1.equals("") && !label_string1.equals(EMPTY_FEATURE)
+                            && !label_string2.equals("") && !label_string2.equals(EMPTY_FEATURE)
+                        ){
+                            alreadyTaggedPairs.add(result.size() - 1);
+                        }
+                    }
+                }
+            }
+        }
+        LOG.info("getPossiblePairItems");
+        LOG.info(result.toString());
+        return result;
+    }
+
+    public Set<Integer> getPossiblePairItems(int index)
+    {
+        Set<Integer> result = new LinkedHashSet<>();
+        if(preAnnotated){
+            // Only segments that have a connection
+            result.add(index);
+            for (int i = 0; i < sentences.size(); i++){
+                if(
+                    getRelationAnnotation(sentences.get(i), sentences.get(index)) != null
+                    || getRelationAnnotation(sentences.get(index), sentences.get(i)) != null
+                ) {
+                    result.add(i);
+                }
+            }
+        }else{
+            // All segments
+            for (int i = 0; i < sentences.size(); i++){
+                result.add(i);
+            }
+        }
+        LOG.info("getPossiblePairItems(index)");
+        LOG.info(result.toString());
+        return result;
+    }
+
+    // get new Sentence (after navigation) logic
+    public int getNewSentenceIndex(int index1, int index2, String method)
+    {
+        List<Integer> possibleRelations = new ArrayList<>();
+        possibleRelations.addAll(getPossiblePairItems(index2));
+        int tmp = 0;
+        if(possibleRelations.size() < 2){
+            return possibleRelations.get(tmp);
+        }
+        int realIndex1 = possibleRelations.indexOf(index1);
+        int realIndex2 = possibleRelations.indexOf(index2);
+        switch (method){
+            case "next":
+                LOG.info("Method next");
+                if (realIndex1 + 1 > possibleRelations.size() - 1) {
+                    tmp = 0;
+                }else{
+                    tmp = realIndex1 + 1;
+                }
+                if (tmp == realIndex2) {
+                    if(tmp + 1 > possibleRelations.size() - 1){
+                        tmp = 0;
+                    }else{
+                        tmp = tmp + 1;
+                    }
+                }
+                break;
+            case "previous":
+                LOG.info("Method previous");
+                if (realIndex1 - 1 < 0) {
+                    tmp = possibleRelations.size() - 1;
+                }else{
+                    tmp = realIndex1 - 1;
+                }
+                if (tmp == realIndex2) {
+                    if (tmp - 1 < 0) {
+                        tmp = possibleRelations.size() - 1;
+                    }else{
+                        tmp = realIndex1 - 1;
+                    }
+                }
+                break;
+            default:
+                break;
+        }
+        return possibleRelations.get(tmp);
+    }
+
+    public boolean isSameSentence(AnnotationFS anno1, AnnotationFS anno2)
+    {
         return anno1.getBegin() == anno2.getBegin() && anno1.getEnd() == anno2.getEnd();
     }
 
@@ -210,13 +259,21 @@ public class HtmlAnnotationEditor
         getDocAttributes();
         getSentences();
         getLayersAndTags();
+        possiblePairs = new ArrayList<>();
+        possiblePairs.addAll(getPossiblePairItems());
+        Pair<Integer, Integer> firstRelation = possiblePairs.get(pairIndex);
+        leftSentenceIndex = firstRelation.getLeft();
+        rightSentenceIndex = firstRelation.getRight();
         renderTextRelations();
     }
     public String getSegmentPositionString(int index)
     {
         String result = "";
         if(preAnnotated){
-
+            List<Integer> possibleRelations = new ArrayList<>();
+            possibleRelations.addAll(getPossiblePairItems(index));
+            int i = possibleRelations.indexOf(index);
+            result = "(" + (i + 1) + "/" + (possibleRelations.size() - 1) + ")";
         }else{
             // Return String
             result = "(" + (index + 1) + "/" + sentences.size() + ")";
@@ -241,8 +298,46 @@ public class HtmlAnnotationEditor
             MetaDataPanel metaDataPanel_right = new MetaDataPanel("metaData_right", sentences, rightIndexModel);
             form.add(metaDataPanel_left);
             form.add(metaDataPanel_right);
+        }else{
+            form.add(new WebMarkupContainer("metaData_left"));
+            form.add(new WebMarkupContainer("metaData_right"));
         }
+        // Progress Panel
+        progressPanel = new ProgressPanel("progress-panel", alreadyTaggedPairs, possiblePairs);
+        form.add(progressPanel);
         // Navigation Buttons
+        form.add(new AjaxButton("pairPrevious"){
+            @Override
+            protected void onSubmit(AjaxRequestTarget target){
+                super.onSubmit(target);
+                Pair<Integer, Integer> result = getNewPair("previous");
+                leftSentenceIndex = (int) result.getLeft();
+                rightSentenceIndex = (int) result.getRight();
+                leftIndexModel.setObject(leftSentenceIndex);
+                rightIndexModel.setObject(rightSentenceIndex);
+                sentence1.setObject(sentences.get(leftSentenceIndex).getCoveredText());
+                sentence2.setObject(sentences.get(rightSentenceIndex).getCoveredText());
+                positionString1.setObject(getSegmentPositionString(leftSentenceIndex));
+                positionString2.setObject(getSegmentPositionString(rightSentenceIndex));
+                renderTextRelations(target);
+            }
+        });
+        form.add(new AjaxButton("pairNext"){
+            @Override
+            protected void onSubmit(AjaxRequestTarget target){
+                super.onSubmit(target);
+                Pair<Integer, Integer> result = getNewPair("next");
+                leftSentenceIndex = (int) result.getLeft();
+                rightSentenceIndex = (int) result.getRight();
+                leftIndexModel.setObject(leftSentenceIndex);
+                rightIndexModel.setObject(rightSentenceIndex);
+                sentence1.setObject(sentences.get(leftSentenceIndex).getCoveredText());
+                sentence2.setObject(sentences.get(rightSentenceIndex).getCoveredText());
+                positionString1.setObject(getSegmentPositionString(leftSentenceIndex));
+                positionString2.setObject(getSegmentPositionString(rightSentenceIndex));
+                renderTextRelations(target);
+            }
+        });
         form.add(new AjaxButton("textLeftPrevious"){
             @Override
             protected void onSubmit(AjaxRequestTarget target){
@@ -250,7 +345,7 @@ public class HtmlAnnotationEditor
                 leftSentenceIndex = getNewSentenceIndex(leftSentenceIndex, rightSentenceIndex, "previous");
                 leftIndexModel.setObject(leftSentenceIndex);
                 sentence1.setObject(sentences.get(leftSentenceIndex).getCoveredText());
-                positionString1.setObject("(" + (leftSentenceIndex + 1) + "/" + sentences.size() + ")");
+                positionString1.setObject(getSegmentPositionString(leftSentenceIndex));
                 renderTextRelations(target);
 
             }
@@ -262,7 +357,7 @@ public class HtmlAnnotationEditor
                 leftSentenceIndex = getNewSentenceIndex(leftSentenceIndex, rightSentenceIndex, "next");
                 leftIndexModel.setObject(leftSentenceIndex);
                 sentence1.setObject(sentences.get(leftSentenceIndex).getCoveredText());
-                positionString1.setObject("(" + (leftSentenceIndex + 1) + "/" + sentences.size() + ")");
+                positionString1.setObject(getSegmentPositionString(leftSentenceIndex));
                 renderTextRelations(target);
             }
         });
@@ -273,7 +368,7 @@ public class HtmlAnnotationEditor
                 rightSentenceIndex = getNewSentenceIndex(rightSentenceIndex, leftSentenceIndex, "previous");
                 rightIndexModel.setObject(rightSentenceIndex);
                 sentence2.setObject(sentences.get(rightSentenceIndex).getCoveredText());
-                positionString2.setObject("(" + (rightSentenceIndex + 1) + "/" + sentences.size() + ")");
+                positionString2.setObject(getSegmentPositionString(rightSentenceIndex));
                 renderTextRelations(target);
             }
         });
@@ -284,7 +379,7 @@ public class HtmlAnnotationEditor
                 rightSentenceIndex = getNewSentenceIndex(rightSentenceIndex, leftSentenceIndex, "next");
                 rightIndexModel.setObject(rightSentenceIndex);
                 sentence2.setObject(sentences.get(rightSentenceIndex).getCoveredText());
-                positionString2.setObject("(" + (rightSentenceIndex + 1) + "/" + sentences.size() + ")");
+                positionString2.setObject(getSegmentPositionString(rightSentenceIndex));
                 renderTextRelations(target);
             }
         });
@@ -301,14 +396,14 @@ public class HtmlAnnotationEditor
         }else{
             // Sentence Left
             sentence1 = Model.of(sentences.get(leftSentenceIndex).getCoveredText());
-            positionString1 = Model.of("(" + (leftSentenceIndex + 1) + "/" + sentences.size() + ")");
+            positionString1 = Model.of(getSegmentPositionString(leftSentenceIndex));
             textLeft = new Label("textLeft", sentence1);
             positionLabel1 = new Label("textLeftPosition", positionString1);
             positionLabel1.setOutputMarkupId(true);
             textLeft.setOutputMarkupId(true);
             // Sentence Right
             sentence2 = Model.of(sentences.get(rightSentenceIndex).getCoveredText());
-            positionString2 = Model.of("(" + (rightSentenceIndex + 1) + "/" + sentences.size() + ")");
+            positionString2 = Model.of(getSegmentPositionString(rightSentenceIndex));
             textRight = new Label("textRight", sentence2);
             positionLabel2 = new Label("textRightPosition", positionString2);
             positionLabel2.setOutputMarkupId(true);
@@ -390,12 +485,14 @@ public class HtmlAnnotationEditor
 
         return form;
     }
-    public void renderTextRelations(){
+    public void renderTextRelations()
+    {
         form = createForm();
         updateSentenceRelation();
         this.add(form);
     }
-    public void renderTextRelations(AjaxRequestTarget aTarget){
+    public void renderTextRelations(AjaxRequestTarget aTarget)
+    {
         updateSentenceRelation();
         aTarget.add(form);
     }
@@ -448,7 +545,8 @@ public class HtmlAnnotationEditor
     }
     // get the Annotation of Sentence.class - location somewhere betwen start & end
     // NOT USED
-    public AnnotationFS getSentenceAnnotation(int location){
+    public AnnotationFS getSentenceAnnotation(int location)
+    {
         CAS cas;
         AnnotationFS result = null;
         try {
@@ -465,7 +563,8 @@ public class HtmlAnnotationEditor
         }
         return result;
     }
-    public AnnotationFS getSentenceLayerAnnotation(AnnotationFS sentence){
+    public AnnotationFS getSentenceLayerAnnotationFromSentence(AnnotationFS sentence)
+    {
         CAS cas;
         AnnotationFS result = null;
         try {
@@ -794,8 +893,8 @@ public class HtmlAnnotationEditor
             AnnotationFS originFS = sentence1;
             AnnotationFS targetFS = sentence2;
             if(!preAnnotated){
-                originFS = getSentenceLayerAnnotation(sentence1);
-                targetFS = getSentenceLayerAnnotation(sentence2);
+                originFS = getSentenceLayerAnnotationFromSentence(sentence1);
+                targetFS = getSentenceLayerAnnotationFromSentence(sentence2);
             }
 
             // Gets the Origin & Target of Type SENTENCE_LAYER_NAME
@@ -814,6 +913,7 @@ public class HtmlAnnotationEditor
             RelationAdapter adapter = (RelationAdapter) layerSupportRegistry.getLayerSupport(relationLayer)
                 .createAdapter(relationLayer, supplier);
             // Delete if prev Relation is detected
+            // TODO: REMAIN META DATA!
             Annotation prevAnno = getRelationAnnotation(originFS, targetFS);
             if(prevAnno != null){
                 VID vid = new VID(WebAnnoCasUtil.getAddr(prevAnno));
@@ -824,6 +924,25 @@ public class HtmlAnnotationEditor
             adapter.setFeatureValue(doc, username, aCas, WebAnnoCasUtil.getAddr(annotation), feature, aTag.getName());
             AnnotationPageBase annotationPage = findParent(AnnotationPageBase.class);
             annotationPage.writeEditorCas(aCas);
+            if(aTag.getName().equals(EMPTY_FEATURE)){
+                if(alreadyTaggedPairs.contains(pairIndex)){
+                    alreadyTaggedPairs.remove(pairIndex);
+                }
+            }else{
+                if(!alreadyTaggedPairs.contains(pairIndex)){
+                    // Check if other direction is already annotated and flag already tagged if so
+                    Annotation inverseAnno = getRelationAnnotation(targetFS, originFS);
+                    if(inverseAnno != null){
+                        Feature label = inverseAnno.getType().getFeatureByBaseName("label");
+                        String label_string = inverseAnno.getFeatureValueAsString(label);
+                        if(!label_string.equals("") && !label_string.equals(EMPTY_FEATURE)){
+                            alreadyTaggedPairs.add(pairIndex);
+                        }
+                    }
+
+                }
+            }
+            progressPanel.setTaggedPairs(alreadyTaggedPairs);
         }
         catch (IOException | CASRuntimeException | AnnotationException e)
         {

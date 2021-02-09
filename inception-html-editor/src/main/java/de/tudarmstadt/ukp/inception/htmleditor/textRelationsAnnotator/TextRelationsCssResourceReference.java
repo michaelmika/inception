@@ -1,6 +1,5 @@
 package de.tudarmstadt.ukp.inception.htmleditor.textRelationsAnnotator;
 
-import de.tudarmstadt.ukp.inception.htmleditor.annotatorjs.resources.AnnotatorJsCssResourceReference;
 import org.apache.wicket.request.resource.CssResourceReference;
 
 public class TextRelationsCssResourceReference

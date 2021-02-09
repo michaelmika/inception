@@ -1,8 +1,7 @@
-package de.tudarmstadt.ukp.inception.htmleditor;
+package de.tudarmstadt.ukp.inception.htmleditor.meta;
 
 import de.tudarmstadt.ukp.clarin.webanno.api.annotation.feature.editor.FeatureEditor;
 import de.tudarmstadt.ukp.clarin.webanno.model.Tag;
-import de.tudarmstadt.ukp.inception.htmleditor.annotatorjs.model.Annotation;
 import org.apache.uima.cas.Feature;
 import org.apache.uima.cas.text.AnnotationFS;
 import org.apache.wicket.model.IModel;

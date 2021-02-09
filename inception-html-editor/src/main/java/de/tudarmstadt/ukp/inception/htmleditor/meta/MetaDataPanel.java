@@ -1,4 +1,4 @@
-package de.tudarmstadt.ukp.inception.htmleditor;
+package de.tudarmstadt.ukp.inception.htmleditor.meta;
 
 import org.apache.uima.cas.text.AnnotationFS;
 import org.apache.wicket.markup.html.link.ExternalLink;

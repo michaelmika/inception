@@ -1,6 +1,9 @@
 .text-relation-background {
     background-color: rgba(0, 0, 0, 0.03);
 }
+.navigation {
+
+}
 .text-relation {
     display: flex;
     flex-direction: row;
@@ -18,15 +21,20 @@
     box-shadow: 0 0 6px 3px rgba(0, 0, 0, 0.2);
     width: 100%;
 }
-.text-wrapper .text-control {
+.margin-top {
+    margin-Top: 20px;
+}
+.margin-bottom {
+    margin-bottom: 20px;
+}
+.text-control {
     display: flex;
     flex-direction: row;
     align-items: center;
-    margin-Top: 20px;
     border: 1px solid #dee2e6 !important;
     border-radius: 8px;
 }
-.text-wrapper .meta-data {
+.meta-data {
     border: 1px solid #dee2e6 !important;
     border-radius: 8px;
     padding: 5px;
@@ -113,4 +121,31 @@
 .relation.active .arrow {
     border: solid #2e8b57;
     border-width: 0 4px 4px 0;
+}
+/*
+    Progress Panel
+ */
+.textrel-progress-bar {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    margin-left: 20px;
+}
+.textrel-progress-indicator-wrapper {
+    height: 14px;
+    margin-left: 10px;
+    margin-right: 10px;
+    width: 200px;
+    position: relative;
+    overflow: hidden;
+    background-color: #C6C6C6;
+    border-radius: 7px;
+}
+.textrel-progress-indicator {
+    background-color: #2e8b57;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 2;
+    position: absolute;
 }

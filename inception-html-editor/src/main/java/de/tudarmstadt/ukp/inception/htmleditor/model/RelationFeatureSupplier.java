@@ -1,8 +1,9 @@
-package de.tudarmstadt.ukp.inception.htmleditor;
+package de.tudarmstadt.ukp.inception.htmleditor.model;
 
 import de.tudarmstadt.ukp.clarin.webanno.api.AnnotationSchemaService;
 import de.tudarmstadt.ukp.clarin.webanno.model.AnnotationFeature;
 import de.tudarmstadt.ukp.clarin.webanno.model.AnnotationLayer;
+import de.tudarmstadt.ukp.inception.htmleditor.HtmlAnnotationEditor;
 import org.apache.wicket.spring.injection.annot.SpringBean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
