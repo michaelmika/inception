@@ -19,7 +19,9 @@ public class Pair<L,R> implements Serializable {
     public R getRight() { return right; }
 
     @Override
-    public int hashCode() { return left.hashCode() * right.hashCode(); }
+    public int hashCode() {
+        return left.hashCode() * right.hashCode();
+    }
 
     @Override
     public boolean equals(Object o) {

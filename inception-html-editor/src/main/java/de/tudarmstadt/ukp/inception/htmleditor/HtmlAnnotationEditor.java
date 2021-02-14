@@ -139,6 +139,41 @@ public class HtmlAnnotationEditor
         return possiblePairs.get(pairIndex);
     }
 
+    public Set<Pair<Integer, Integer>> getPossiblePairItems_efficient()
+    {
+        Set<Pair<Integer, Integer>> result = new LinkedHashSet<>();
+        try{
+            CAS cas = getCasProvider().get();
+            List<Annotation> annoList = cas.<Annotation>select(getType(cas,RELATION_LAYER_NAME)).asList();
+            for (Annotation relation : annoList) {
+                // Dependent
+                Feature dependentFeat = relation.getType().getFeatureByBaseName("Dependent");
+                AnnotationFS dependentFS = (AnnotationFS) relation.getFeatureValue(dependentFeat);
+                // Governor
+                Feature governorFeat = relation.getType().getFeatureByBaseName("Governor");
+                AnnotationFS governorFS = (AnnotationFS) relation.getFeatureValue(governorFeat);
+                int i = sentences.indexOf(dependentFS);
+                int b = sentences.indexOf(governorFS);
+                Pair<Integer, Integer> pair = new Pair<>(i, b);
+                result.add(pair);
+                // Check if already Tagged
+                Feature label1 = relation.getType().getFeatureByBaseName("label");
+                String label_string1 = relation.getFeatureValueAsString(label1);
+                if(
+                    !label_string1.equals("") && !label_string1.equals(EMPTY_FEATURE)
+                ){
+                    alreadyTaggedPairs.add(result.size() - 1);
+                }
+            }
+        }catch (IOException e){
+            handleError("Unable to create span annotation", e);
+        }
+        LOG.info("ALL possible Pairs:");
+        LOG.info(result.toString());
+        return result;
+    }
+
+    // Inefficient - not used
     public Set<Pair<Integer, Integer>> getPossiblePairItems()
     {
         Set<Pair<Integer, Integer>> result = new LinkedHashSet<>();
@@ -174,6 +209,26 @@ public class HtmlAnnotationEditor
         return result;
     }
 
+    public Set<Integer> getPossiblePairItems_efficient(int index)
+    {
+        Set<Integer> result = new LinkedHashSet<>();
+        result.add(index);
+        possiblePairs.forEach(
+            integerIntegerPair -> {
+                if (
+                    integerIntegerPair.getLeft() == index
+                ) {
+                    result.add(integerIntegerPair.getRight());
+                }else if (
+                    integerIntegerPair.getRight() == index
+                ) {
+                    result.add(integerIntegerPair.getLeft());
+                }
+            }
+        );
+        return result;
+    }
+
     public Set<Integer> getPossiblePairItems(int index)
     {
         Set<Integer> result = new LinkedHashSet<>();
@@ -203,7 +258,7 @@ public class HtmlAnnotationEditor
     public int getNewSentenceIndex(int index1, int index2, String method)
     {
         List<Integer> possibleRelations = new ArrayList<>();
-        possibleRelations.addAll(getPossiblePairItems(index2));
+        possibleRelations.addAll(getPossiblePairItems_efficient(index2));
         int tmp = 0;
         if(possibleRelations.size() < 2){
             return possibleRelations.get(tmp);
@@ -260,7 +315,7 @@ public class HtmlAnnotationEditor
         getSentences();
         getLayersAndTags();
         possiblePairs = new ArrayList<>();
-        possiblePairs.addAll(getPossiblePairItems());
+        possiblePairs.addAll(getPossiblePairItems_efficient());
         Pair<Integer, Integer> firstRelation = possiblePairs.get(pairIndex);
         leftSentenceIndex = firstRelation.getLeft();
         rightSentenceIndex = firstRelation.getRight();
@@ -271,7 +326,7 @@ public class HtmlAnnotationEditor
         String result = "";
         if(preAnnotated){
             List<Integer> possibleRelations = new ArrayList<>();
-            possibleRelations.addAll(getPossiblePairItems(index));
+            possibleRelations.addAll(getPossiblePairItems_efficient(index));
             int i = possibleRelations.indexOf(index);
             result = "(" + (i + 1) + "/" + (possibleRelations.size() - 1) + ")";
         }else{
@@ -317,8 +372,8 @@ public class HtmlAnnotationEditor
                 rightIndexModel.setObject(rightSentenceIndex);
                 sentence1.setObject(sentences.get(leftSentenceIndex).getCoveredText());
                 sentence2.setObject(sentences.get(rightSentenceIndex).getCoveredText());
-                positionString1.setObject(getSegmentPositionString(leftSentenceIndex));
-                positionString2.setObject(getSegmentPositionString(rightSentenceIndex));
+                positionString1.setObject(getSegmentPositionString(rightSentenceIndex));
+                positionString2.setObject(getSegmentPositionString(leftSentenceIndex));
                 renderTextRelations(target);
             }
         });
@@ -333,8 +388,8 @@ public class HtmlAnnotationEditor
                 rightIndexModel.setObject(rightSentenceIndex);
                 sentence1.setObject(sentences.get(leftSentenceIndex).getCoveredText());
                 sentence2.setObject(sentences.get(rightSentenceIndex).getCoveredText());
-                positionString1.setObject(getSegmentPositionString(leftSentenceIndex));
-                positionString2.setObject(getSegmentPositionString(rightSentenceIndex));
+                positionString1.setObject(getSegmentPositionString(rightSentenceIndex));
+                positionString2.setObject(getSegmentPositionString(leftSentenceIndex));
                 renderTextRelations(target);
             }
         });
@@ -345,7 +400,8 @@ public class HtmlAnnotationEditor
                 leftSentenceIndex = getNewSentenceIndex(leftSentenceIndex, rightSentenceIndex, "previous");
                 leftIndexModel.setObject(leftSentenceIndex);
                 sentence1.setObject(sentences.get(leftSentenceIndex).getCoveredText());
-                positionString1.setObject(getSegmentPositionString(leftSentenceIndex));
+                positionString1.setObject(getSegmentPositionString(rightSentenceIndex));
+                positionString2.setObject(getSegmentPositionString(leftSentenceIndex));
                 renderTextRelations(target);
 
             }
@@ -357,7 +413,8 @@ public class HtmlAnnotationEditor
                 leftSentenceIndex = getNewSentenceIndex(leftSentenceIndex, rightSentenceIndex, "next");
                 leftIndexModel.setObject(leftSentenceIndex);
                 sentence1.setObject(sentences.get(leftSentenceIndex).getCoveredText());
-                positionString1.setObject(getSegmentPositionString(leftSentenceIndex));
+                positionString1.setObject(getSegmentPositionString(rightSentenceIndex));
+                positionString2.setObject(getSegmentPositionString(leftSentenceIndex));
                 renderTextRelations(target);
             }
         });
@@ -368,7 +425,8 @@ public class HtmlAnnotationEditor
                 rightSentenceIndex = getNewSentenceIndex(rightSentenceIndex, leftSentenceIndex, "previous");
                 rightIndexModel.setObject(rightSentenceIndex);
                 sentence2.setObject(sentences.get(rightSentenceIndex).getCoveredText());
-                positionString2.setObject(getSegmentPositionString(rightSentenceIndex));
+                positionString1.setObject(getSegmentPositionString(rightSentenceIndex));
+                positionString2.setObject(getSegmentPositionString(leftSentenceIndex));
                 renderTextRelations(target);
             }
         });
@@ -379,7 +437,8 @@ public class HtmlAnnotationEditor
                 rightSentenceIndex = getNewSentenceIndex(rightSentenceIndex, leftSentenceIndex, "next");
                 rightIndexModel.setObject(rightSentenceIndex);
                 sentence2.setObject(sentences.get(rightSentenceIndex).getCoveredText());
-                positionString2.setObject(getSegmentPositionString(rightSentenceIndex));
+                positionString1.setObject(getSegmentPositionString(rightSentenceIndex));
+                positionString2.setObject(getSegmentPositionString(leftSentenceIndex));
                 renderTextRelations(target);
             }
         });
@@ -396,14 +455,14 @@ public class HtmlAnnotationEditor
         }else{
             // Sentence Left
             sentence1 = Model.of(sentences.get(leftSentenceIndex).getCoveredText());
-            positionString1 = Model.of(getSegmentPositionString(leftSentenceIndex));
+            positionString1 = Model.of(getSegmentPositionString(rightSentenceIndex));
             textLeft = new Label("textLeft", sentence1);
             positionLabel1 = new Label("textLeftPosition", positionString1);
             positionLabel1.setOutputMarkupId(true);
             textLeft.setOutputMarkupId(true);
             // Sentence Right
             sentence2 = Model.of(sentences.get(rightSentenceIndex).getCoveredText());
-            positionString2 = Model.of(getSegmentPositionString(rightSentenceIndex));
+            positionString2 = Model.of(getSegmentPositionString(leftSentenceIndex));
             textRight = new Label("textRight", sentence2);
             positionLabel2 = new Label("textRightPosition", positionString2);
             positionLabel2.setOutputMarkupId(true);

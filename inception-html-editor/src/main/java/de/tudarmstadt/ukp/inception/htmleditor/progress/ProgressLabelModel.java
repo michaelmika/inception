@@ -14,7 +14,7 @@ public class ProgressLabelModel implements IModel<String> {
 
     @Override
     public String getObject() {
-        return Math.round(progress.getObject() * 100) + "%";
+        return Math.round(progress.getObject()[0] * 100) + "% - " + progress.getObject()[1] + "/" + progress.getObject()[2];
     }
 
     @Override

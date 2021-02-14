@@ -12,7 +12,7 @@ public class ProgressIndicatorCSSModel implements IModel<String> {
     }
     @Override
     public String getObject() {
-        int p = (int) Math.round(progress.getObject() * 100);
+        int p = (int) Math.round(progress.getObject()[0] * 100);
         return "width:" + ((p * WIDTH) / 100) + "px";
     }
 

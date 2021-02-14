@@ -4,10 +4,12 @@ import de.tudarmstadt.ukp.clarin.webanno.model.Tag;
 import org.apache.wicket.model.IModel;
 import org.apache.wicket.model.Model;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 
 
-public class ProgressModel implements IModel<Double> {
+public class ProgressModel implements IModel<Double[]> {
     private final Model<HashSet<Integer>> taggedPairsModel;
     private final int totalSize;
     public ProgressModel(final Model<HashSet<Integer>> taggedPairsModel, int totalSize){
@@ -17,11 +19,15 @@ public class ProgressModel implements IModel<Double> {
     }
 
     @Override
-    public Double getObject() {
+    public Double[] getObject() {
+        Double[] result = {0.0, 0.0, 0.0};
         if(totalSize < 1){
-            return 0.0;
+            return result;
         }
-        return ((double)taggedPairsModel.getObject().size()) / ((double)totalSize);
+        result[0] = ((double)taggedPairsModel.getObject().size()) / ((double)totalSize);
+        result[1] = (double)taggedPairsModel.getObject().size();
+        result[2] = (double)totalSize;
+        return result;
     }
 
     @Override
