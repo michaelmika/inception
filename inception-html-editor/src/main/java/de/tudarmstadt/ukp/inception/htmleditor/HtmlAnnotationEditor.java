@@ -115,6 +115,8 @@ public class HtmlAnnotationEditor
 
     private ProgressPanel progressPanel;
 
+    private CAS cas;
+
     private boolean preAnnotated = false;
 
     public Pair<Integer, Integer> getNewPair(String method){
@@ -142,31 +144,26 @@ public class HtmlAnnotationEditor
     public Set<Pair<Integer, Integer>> getPossiblePairItems_efficient()
     {
         Set<Pair<Integer, Integer>> result = new LinkedHashSet<>();
-        try{
-            CAS cas = getCasProvider().get();
-            List<Annotation> annoList = cas.<Annotation>select(getType(cas,RELATION_LAYER_NAME)).asList();
-            for (Annotation relation : annoList) {
-                // Dependent
-                Feature dependentFeat = relation.getType().getFeatureByBaseName("Dependent");
-                AnnotationFS dependentFS = (AnnotationFS) relation.getFeatureValue(dependentFeat);
-                // Governor
-                Feature governorFeat = relation.getType().getFeatureByBaseName("Governor");
-                AnnotationFS governorFS = (AnnotationFS) relation.getFeatureValue(governorFeat);
-                int i = sentences.indexOf(dependentFS);
-                int b = sentences.indexOf(governorFS);
-                Pair<Integer, Integer> pair = new Pair<>(i, b);
-                result.add(pair);
-                // Check if already Tagged
-                Feature label1 = relation.getType().getFeatureByBaseName("label");
-                String label_string1 = relation.getFeatureValueAsString(label1);
-                if(
-                    !label_string1.equals("") && !label_string1.equals(EMPTY_FEATURE)
-                ){
-                    alreadyTaggedPairs.add(result.size() - 1);
-                }
+        List<Annotation> annoList = cas.<Annotation>select(getType(cas,RELATION_LAYER_NAME)).asList();
+        for (Annotation relation : annoList) {
+            // Dependent
+            Feature dependentFeat = relation.getType().getFeatureByBaseName("Dependent");
+            AnnotationFS dependentFS = (AnnotationFS) relation.getFeatureValue(dependentFeat);
+            // Governor
+            Feature governorFeat = relation.getType().getFeatureByBaseName("Governor");
+            AnnotationFS governorFS = (AnnotationFS) relation.getFeatureValue(governorFeat);
+            int i = sentences.indexOf(dependentFS);
+            int b = sentences.indexOf(governorFS);
+            Pair<Integer, Integer> pair = new Pair<>(i, b);
+            result.add(pair);
+            // Check if already Tagged
+            Feature label1 = relation.getType().getFeatureByBaseName("label");
+            String label_string1 = relation.getFeatureValueAsString(label1);
+            if(
+                !label_string1.equals("") && !label_string1.equals(EMPTY_FEATURE)
+            ){
+                alreadyTaggedPairs.add(result.size() - 1);
             }
-        }catch (IOException e){
-            handleError("Unable to create span annotation", e);
         }
         LOG.info("ALL possible Pairs:");
         LOG.info(result.toString());
@@ -311,6 +308,12 @@ public class HtmlAnnotationEditor
             AnnotationActionHandler aActionHandler, CasProvider aCasProvider)
     {
         super(aId, aModel, aActionHandler, aCasProvider);
+        try{
+            cas = aCasProvider.get();
+        }catch (IOException e){
+            LOG.error(e.toString());
+            handleError("Unable to load CAS ", e);
+        }
         getDocAttributes();
         getSentences();
         getLayersAndTags();
@@ -360,6 +363,14 @@ public class HtmlAnnotationEditor
         // Progress Panel
         progressPanel = new ProgressPanel("progress-panel", alreadyTaggedPairs, possiblePairs);
         form.add(progressPanel);
+        // Save Button
+        form.add(new AjaxButton("saveButton"){
+            @Override
+            protected void onSubmit(AjaxRequestTarget target){
+                super.onSubmit(target);
+                saveCas();
+            }
+        });
         // Navigation Buttons
         form.add(new AjaxButton("pairPrevious"){
             @Override
@@ -523,14 +534,22 @@ public class HtmlAnnotationEditor
                  * Called when a option is selected of a dropdown list.
                  */
                 protected void onUpdate(AjaxRequestTarget aTarget) {
+                    LOG.info("TIME PASSED");
+                    long start = System.nanoTime();
                     Tag tag = (Tag) getFormComponent().getModelObject();
+                    LOG.info("1: " + (System.nanoTime() - start));
                     relation.setRelationLeft(tag);
                     LOG.info("Relation Left Choice: " + tag.getName());
+                    LOG.info("2: " + (System.nanoTime() - start));
                     // Annotate both active Sentences
                     createSentenceAnnotation();
+                    LOG.info("3: " + (System.nanoTime() - start));
                     // Annotate relation
                     createRelationAnnotation(tag, rightSentenceIndex, leftSentenceIndex);
+                    LOG.info("4: " + (System.nanoTime() - start));
                     renderTextRelations(aTarget);
+                    LOG.info("5: " + (System.nanoTime() - start));
+                    LOG.info("END TIME PASSED");
                 }
             }));
 
@@ -571,14 +590,6 @@ public class HtmlAnnotationEditor
     }
     public void getSentences()
     {
-        CAS cas;
-        try {
-            cas = getCasProvider().get();
-        }
-        catch (IOException e) {
-            handleError("Unable to load data", e);
-            return;
-        }
         sentences = new ArrayList<>();
         LOG.info("SENTENCES:");
         // Get all Sentences and store them
@@ -606,37 +617,20 @@ public class HtmlAnnotationEditor
     // NOT USED
     public AnnotationFS getSentenceAnnotation(int location)
     {
-        CAS cas;
         AnnotationFS result = null;
-        try {
-            cas = getCasProvider().get();
-            for (AnnotationFS sentence : select(cas, getType(cas, Sentence.class))) {
-                if(sentence.getBegin() <= location && sentence.getEnd() >= location){
-                    result = sentence;
-                }
+        for (AnnotationFS sentence : select(cas, getType(cas, Sentence.class))) {
+            if(sentence.getBegin() <= location && sentence.getEnd() >= location){
+                result = sentence;
             }
-        }
-        catch (IOException e) {
-            handleError("Unable to load data", e);
-            return null;
         }
         return result;
     }
     public AnnotationFS getSentenceLayerAnnotationFromSentence(AnnotationFS sentence)
     {
-        CAS cas;
         AnnotationFS result = null;
-        try {
-            cas = getCasProvider().get();
-            List selectedAnno = cas.select(getType(cas, SENTENCE_LAYER_NAME)).coveredBy(sentence).asList();
-            if(selectedAnno.size() > 0){
-                result = (AnnotationFS) selectedAnno.get(0);
-            }
-
-        }
-        catch (IOException e) {
-            handleError("Unable to load data", e);
-            return null;
+        List selectedAnno = cas.select(getType(cas, SENTENCE_LAYER_NAME)).coveredBy(sentence).asList();
+        if(selectedAnno.size() > 0){
+            result = (AnnotationFS) selectedAnno.get(0);
         }
         return result;
     }
@@ -735,13 +729,23 @@ public class HtmlAnnotationEditor
         return;
     }
 
-    private void annotateSentence(CAS aCas, AnnotationFS aSentence){
+    private void saveCas()
+    {
+        try{
+            AnnotationPageBase annotationPage = findParent(AnnotationPageBase.class);
+            annotationPage.writeEditorCas(cas);
+        }catch (IOException | AnnotationException e){
+            handleError("Unable to save Annotation", e);
+        }
+    }
+
+    private void annotateSentence(AnnotationFS aSentence){
         try {
             int begin = aSentence.getBegin();
             int end = aSentence.getEnd();
 
             // Check if Sentence has already been annotated with SentenceLayer
-            if(!isTextAnnotated(aCas, begin, end, sentenceLayer)){
+            if(!isTextAnnotated(begin, end, sentenceLayer)){
                 // No Features - Empty Supplier
                 Supplier supplier = new Supplier() {
                     @Override
@@ -750,13 +754,13 @@ public class HtmlAnnotationEditor
                     }
                 };
                 SpanAdapter adapter = (SpanAdapter) layerSupportRegistry.getLayerSupport(sentenceLayer).createAdapter(sentenceLayer, supplier);
-                //AnnotationFS annotation = aCas.createAnnotation(getType(aCas, SENTENCE_LAYER_NAME), begin, end);
+                //AnnotationFS annotation = cas.createAnnotation(getType(cas, SENTENCE_LAYER_NAME), begin, end);
                 AnnotatorState state = getModelObject();
                 SourceDocument doc = state.getDocument();
                 String username = state.getUser().getUsername();
-                adapter.add(doc, username, aCas, begin, end);
-                //aCas.addFsToIndexes(annotation);
-                //adapter.setFeatureValue(doc, username, aCas, WebAnnoCasUtil.getAddr(annotation), feature, value);
+                adapter.add(doc, username, cas, begin, end);
+                //cas.addFsToIndexes(annotation);
+                //adapter.setFeatureValue(doc, username, cas, WebAnnoCasUtil.getAddr(annotation), feature, value);
             }
         }
         catch (Exception e) {
@@ -764,10 +768,10 @@ public class HtmlAnnotationEditor
         }
     }
     // Checks if a part of a text as an Annotation of type aAnnotationLayer
-    private boolean isTextAnnotated(CAS aCas, int begin, int end, AnnotationLayer aAnnotationLayer){
+    private boolean isTextAnnotated(int begin, int end, AnnotationLayer aAnnotationLayer){
         boolean alreadyAnnotated = false;
         try{
-            List selectedAnnos = aCas.select(getType(aCas,aAnnotationLayer.getName())).coveredBy(begin, end).asList();
+            List selectedAnnos = cas.select(getType(cas,aAnnotationLayer.getName())).coveredBy(begin, end).asList();
             if(selectedAnnos.size() > 0){
                 alreadyAnnotated = true;
                 LOG.info("AlreadyAnnotated");
@@ -785,33 +789,28 @@ public class HtmlAnnotationEditor
     }
     // Checks if Relation already exists and updates View
     private void updateSentenceRelation(){
-        try {
-            CAS cas = getCasProvider().get();
-            AnnotationFS leftSentenceAnnoFS = sentences.get(leftSentenceIndex);
-            AnnotationFS rightSentenceAnnoFS = sentences.get(rightSentenceIndex);
-            List<Annotation> selectedAnnoList_Left = cas.<Annotation>select(getType(cas,RELATION_LAYER_NAME))
-                .coveredBy(leftSentenceAnnoFS).asList();
-            List<Annotation> selectedAnnoList_Right = cas.<Annotation>select(getType(cas,RELATION_LAYER_NAME))
-                .coveredBy(rightSentenceAnnoFS).asList();
-            LOG.info("Detected annos");
-            Tag[] result1 = getRelationTags(selectedAnnoList_Left, leftSentenceAnnoFS, rightSentenceAnnoFS);
-            Tag[] result2 = getRelationTags(selectedAnnoList_Right, leftSentenceAnnoFS, rightSentenceAnnoFS);
-            // Update Relation
-            relation.setSentences(sentence1.getObject(), sentence2.getObject());
-            Tag leftRelation = (
-                result1[0] != null ? result1[0] :
-                    result2[0] != null ? result2[0] : null
-            );
-            Tag rightRelation = (
-                result1[1] != null ? result1[1] :
-                    result2[1] != null ? result2[1] : null
-            );
-            relation.setRelationLeft(leftRelation);
-            relation.setRelationRight(rightRelation);
+        AnnotationFS leftSentenceAnnoFS = sentences.get(leftSentenceIndex);
+        AnnotationFS rightSentenceAnnoFS = sentences.get(rightSentenceIndex);
+        List<Annotation> selectedAnnoList_Left = cas.<Annotation>select(getType(cas,RELATION_LAYER_NAME))
+            .coveredBy(leftSentenceAnnoFS).asList();
+        List<Annotation> selectedAnnoList_Right = cas.<Annotation>select(getType(cas,RELATION_LAYER_NAME))
+            .coveredBy(rightSentenceAnnoFS).asList();
+        LOG.info("Detected annos");
+        Tag[] result1 = getRelationTags(selectedAnnoList_Left, leftSentenceAnnoFS, rightSentenceAnnoFS);
+        Tag[] result2 = getRelationTags(selectedAnnoList_Right, leftSentenceAnnoFS, rightSentenceAnnoFS);
+        // Update Relation
+        relation.setSentences(sentence1.getObject(), sentence2.getObject());
+        Tag leftRelation = (
+            result1[0] != null ? result1[0] :
+                result2[0] != null ? result2[0] : null
+        );
+        Tag rightRelation = (
+            result1[1] != null ? result1[1] :
+                result2[1] != null ? result2[1] : null
+        );
+        relation.setRelationLeft(leftRelation);
+        relation.setRelationRight(rightRelation);
 
-        } catch (IOException e) {
-            handleError("Unable to create span annotation", e);
-        }
     }
     // Compares the Annotations from annotationList with leftSentence & rightSentence and update View
     private Tag[] getRelationTags(
@@ -860,95 +859,89 @@ public class HtmlAnnotationEditor
         AnnotationFS originFS, AnnotationFS targetFS
     ){
         Annotation result = null;
-        try{
-            CAS cas = getCasProvider().get();
-            List<Annotation> selectedAnnoList = cas.<Annotation>select(getType(cas,RELATION_LAYER_NAME))
-                .coveredBy(targetFS).asList();
-            for (Annotation potentialRelation : selectedAnnoList) {
-                // Dependent
-                Feature dependentFeat = potentialRelation.getType().getFeatureByBaseName("Dependent");
-                AnnotationFS dependentFS = (AnnotationFS) potentialRelation.getFeatureValue(dependentFeat);
-                // Governor
-                Feature governorFeat = potentialRelation.getType().getFeatureByBaseName("Governor");
-                AnnotationFS governorFS = (AnnotationFS) potentialRelation.getFeatureValue(governorFeat);
-                if(
-                    isSameSentence(targetFS, dependentFS)
-                        && isSameSentence(originFS, governorFS)
-                ){
-                    result = potentialRelation;
-                }
+        List<Annotation> selectedAnnoList = cas.<Annotation>select(getType(cas,RELATION_LAYER_NAME))
+            .coveredBy(targetFS).asList();
+        for (Annotation potentialRelation : selectedAnnoList) {
+            // Dependent
+            Feature dependentFeat = potentialRelation.getType().getFeatureByBaseName("Dependent");
+            AnnotationFS dependentFS = (AnnotationFS) potentialRelation.getFeatureValue(dependentFeat);
+            // Governor
+            Feature governorFeat = potentialRelation.getType().getFeatureByBaseName("Governor");
+            AnnotationFS governorFS = (AnnotationFS) potentialRelation.getFeatureValue(governorFeat);
+            if(
+                isSameSentence(targetFS, dependentFS)
+                    && isSameSentence(originFS, governorFS)
+            ){
+                result = potentialRelation;
             }
-
-        }catch (IOException e){
-            handleError("Unable to create span annotation", e);
         }
+
         return result;
     }
 
     private void createSentenceAnnotation()
     {
 
-        try {
-            CAS cas = getCasProvider().get();
-            // Annotation first Sentence
-            annotateSentence(cas, sentences.get(leftSentenceIndex));
-            // Annotation second Sentence
-            annotateSentence(cas, sentences.get(rightSentenceIndex));
-            AnnotationPageBase annotationPage = findParent(AnnotationPageBase.class);
-            annotationPage.writeEditorCas(cas);
+        long start = System.nanoTime();
+        LOG.info("createAnno 1:" + (System.nanoTime() - start));
+        start = System.nanoTime();
+        // Annotation first Sentence
+        annotateSentence(sentences.get(leftSentenceIndex));
+        LOG.info("createAnno 2:" + (System.nanoTime() - start));
+        start = System.nanoTime();
+        // Annotation second Sentence
+        annotateSentence(sentences.get(rightSentenceIndex));
+        LOG.info("createAnno 3:" + (System.nanoTime() - start));
+        start = System.nanoTime();
 
-            // Annotate sentence 1
-            //if (begin_sentence1 > -1 && end_sentence1 > -1) {
-            //    if (state.isSlotArmed()) {
-                    // When filling a slot, the current selection is *NOT* changed. The
-                    // Span annotation which owns the slot that is being filled remains
-                    // selected!
-            //        getActionHandler().actionFillSlot(aTarget, cas, begin_sentence1, end_sentence1, NONE_ID);
-            //    }
-            //    else {
-                    // DOES NOT WORK SELECTING
-            //        state.setSelectedAnnotationLayer(sentenceLayer);
-            //        state.getSelection().selectSpan(cas, begin_sentence1, end_sentence1);
-            //        getActionHandler().actionCreateOrUpdate(aTarget, cas);
-            //    }
-            //}
-            //else {
-            //    handleError("Unable to create span annotation: No match was found", aTarget);
-            //}
-            // Annotate sentence 2
-            //if (begin_sentence2 > -1 && end_sentence2 > -1) {
-            //    if (state.isSlotArmed()) {
-                    // When filling a slot, the current selection is *NOT* changed. The
-                    // Span annotation which owns the slot that is being filled remains
-                    // selected!
-            //        getActionHandler().actionFillSlot(aTarget, cas, begin_sentence2, end_sentence2, NONE_ID);
-            //    }
-            //    else {
-            //        state.setSelectedAnnotationLayer(sentenceLayer);
-            //        state.getSelection().selectSpan(cas, begin_sentence2, end_sentence2);
-            //        getActionHandler().actionCreateOrUpdate(aTarget, cas);
-            //    }
-            //}
-            //else {
-            //    handleError("Unable to create span annotation: No match was found", aTarget);
-            //}
-        }
-        catch (IOException | AnnotationException e) {
-            handleError("Unable to create span annotation", e);
-        }
+
+        // Annotate sentence 1
+        //if (begin_sentence1 > -1 && end_sentence1 > -1) {
+        //    if (state.isSlotArmed()) {
+        // When filling a slot, the current selection is *NOT* changed. The
+        // Span annotation which owns the slot that is being filled remains
+        // selected!
+        //        getActionHandler().actionFillSlot(aTarget, cas, begin_sentence1, end_sentence1, NONE_ID);
+        //    }
+        //    else {
+        // DOES NOT WORK SELECTING
+        //        state.setSelectedAnnotationLayer(sentenceLayer);
+        //        state.getSelection().selectSpan(cas, begin_sentence1, end_sentence1);
+        //        getActionHandler().actionCreateOrUpdate(aTarget, cas);
+        //    }
+        //}
+        //else {
+        //    handleError("Unable to create span annotation: No match was found", aTarget);
+        //}
+        // Annotate sentence 2
+        //if (begin_sentence2 > -1 && end_sentence2 > -1) {
+        //    if (state.isSlotArmed()) {
+        // When filling a slot, the current selection is *NOT* changed. The
+        // Span annotation which owns the slot that is being filled remains
+        // selected!
+        //        getActionHandler().actionFillSlot(aTarget, cas, begin_sentence2, end_sentence2, NONE_ID);
+        //    }
+        //    else {
+        //        state.setSelectedAnnotationLayer(sentenceLayer);
+        //        state.getSelection().selectSpan(cas, begin_sentence2, end_sentence2);
+        //        getActionHandler().actionCreateOrUpdate(aTarget, cas);
+        //    }
+        //}
+        //else {
+        //    handleError("Unable to create span annotation: No match was found", aTarget);
+        //}
     }
 
     // Creates a Relation Annotation from aSentenceIndex to bSentenceIndex with tag
     private void createRelationAnnotation(Tag aTag, int originIndex, int targetIndex){
         try {
-            CAS aCas = getCasProvider().get();
             AnnotatorState state = getModelObject();
             SourceDocument doc = state.getDocument();
             String username = state.getUser().getUsername();
             // Get Sentences
             AnnotationFS sentence1 = sentences.get(originIndex);
             AnnotationFS sentence2 = sentences.get(targetIndex);
-            //List selectedAnno = aCas.select(getType(aCas, SENTENCE_LAYER_NAME)).coveredBy(sentence1).asList();
+            //List selectedAnno = cas.select(getType(cas, SENTENCE_LAYER_NAME)).coveredBy(sentence1).asList();
             AnnotationFS originFS = sentence1;
             AnnotationFS targetFS = sentence2;
             if(!preAnnotated){
@@ -957,15 +950,15 @@ public class HtmlAnnotationEditor
             }
 
             // Gets the Origin & Target of Type SENTENCE_LAYER_NAME
-            //AnnotationFS originFs = aCas.createAnnotation(getType(aCas, SENTENCE_LAYER_NAME), sentence1.getBegin(), sentence1.getEnd());
-            //AnnotationFS targetFs = aCas.createAnnotation(getType(aCas, SENTENCE_LAYER_NAME), sentence2.getBegin(), sentence2.getEnd());
+            //AnnotationFS originFs = cas.createAnnotation(getType(cas, SENTENCE_LAYER_NAME), sentence1.getBegin(), sentence1.getEnd());
+            //AnnotationFS targetFs = cas.createAnnotation(getType(cas, SENTENCE_LAYER_NAME), sentence2.getBegin(), sentence2.getEnd());
             // Get state
             //AnnotatorState state = getModelObject();
             // Select
             //Selection selection = state.getSelection();
             //selection.selectArc(VID.NONE_ID, originFs, targetFs);
             // Create
-            //getActionHandler().actionCreateOrUpdate(aTarget, aCas);
+            //getActionHandler().actionCreateOrUpdate(aTarget, cas);
 
             // Second try
             Supplier supplier = new RelationFeatureSupplier(relationLayer);
@@ -976,13 +969,11 @@ public class HtmlAnnotationEditor
             Annotation prevAnno = getRelationAnnotation(originFS, targetFS);
             if(prevAnno != null){
                 VID vid = new VID(WebAnnoCasUtil.getAddr(prevAnno));
-                adapter.delete(doc, username, aCas, vid);
+                adapter.delete(doc, username, cas, vid);
             }
             // Create new Relation
-            AnnotationFS annotation = adapter.add(doc, username, originFS, targetFS, aCas);
-            adapter.setFeatureValue(doc, username, aCas, WebAnnoCasUtil.getAddr(annotation), feature, aTag.getName());
-            AnnotationPageBase annotationPage = findParent(AnnotationPageBase.class);
-            annotationPage.writeEditorCas(aCas);
+            AnnotationFS annotation = adapter.add(doc, username, originFS, targetFS, cas);
+            adapter.setFeatureValue(doc, username, cas, WebAnnoCasUtil.getAddr(annotation), feature, aTag.getName());
             if(aTag.getName().equals(EMPTY_FEATURE)){
                 if(alreadyTaggedPairs.contains(pairIndex)){
                     alreadyTaggedPairs.remove(pairIndex);
@@ -1003,7 +994,7 @@ public class HtmlAnnotationEditor
             }
             progressPanel.setTaggedPairs(alreadyTaggedPairs);
         }
-        catch (IOException | CASRuntimeException | AnnotationException e)
+        catch (CASRuntimeException | AnnotationException e)
         {
             handleError("Unable to create relation annotation", e);
         }

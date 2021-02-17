@@ -21,15 +21,18 @@
 <wicket:panel>
     <div class="scrolling flex-content text-relation-background" style="padding: 10px;">
         <form wicket:id="textRelationForm">
-            <div class="text-control action-bar action-bar-group margin-bottom">
-                Pairwise Navigation
-                <div class="btn-group">
-                    <button type="button" wicket:id="pairPrevious" class="btn btn-light"><i class="fas fa-step-backward" aria-hidden="true"></i></button>
-                    <button type="button" wicket:id="pairNext" class="btn btn-light"><i class="fas fa-step-forward" aria-hidden="true"></i></button>
-                </div>
-                <div wicket:id="progress-panel">
+            <div class="text-control action-bar action-bar-group margin-bottom justify-content-between">
+                <div class="align-horizontal">
+                    Pairwise Navigation
+                    <div class="btn-group">
+                        <button type="button" wicket:id="pairPrevious" class="btn btn-light"><i class="fas fa-step-backward" aria-hidden="true"></i></button>
+                        <button type="button" wicket:id="pairNext" class="btn btn-light"><i class="fas fa-step-forward" aria-hidden="true"></i></button>
+                    </div>
+                    <div wicket:id="progress-panel">
 
+                    </div>
                 </div>
+                <button type="button" wicket:id="saveButton" class="btn btn-light"><i class="fas fa-save" aria-hidden="true" style="margin-right: 10px"></i>Save</button>
             </div>
             <div class="text-relation">
                 <div class="text-wrapper">
