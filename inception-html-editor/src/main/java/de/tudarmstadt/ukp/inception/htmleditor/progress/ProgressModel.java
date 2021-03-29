@@ -9,7 +9,7 @@ import java.util.HashSet;
 import java.util.List;
 
 
-public class ProgressModel implements IModel<Double[]> {
+public class ProgressModel implements IModel<int[]> {
     private final Model<HashSet<Integer>> taggedPairsModel;
     private final int totalSize;
     public ProgressModel(final Model<HashSet<Integer>> taggedPairsModel, int totalSize){
@@ -19,14 +19,14 @@ public class ProgressModel implements IModel<Double[]> {
     }
 
     @Override
-    public Double[] getObject() {
-        Double[] result = {0.0, 0.0, 0.0};
+    public int[] getObject() {
+        int[] result = {0, 0, 0};
         if(totalSize < 1){
             return result;
         }
-        result[0] = ((double)taggedPairsModel.getObject().size()) / ((double)totalSize);
-        result[1] = (double)taggedPairsModel.getObject().size();
-        result[2] = (double)totalSize;
+        result[0] = (int)((int)taggedPairsModel.getObject().size()) / ((int)totalSize);
+        result[1] = (int)taggedPairsModel.getObject().size();
+        result[2] = (int)totalSize;
         return result;
     }
 
