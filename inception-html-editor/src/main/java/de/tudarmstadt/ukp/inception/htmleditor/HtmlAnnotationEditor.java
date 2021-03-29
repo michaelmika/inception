@@ -251,7 +251,7 @@ public class HtmlAnnotationEditor
         return result;
     }
 
-    // get new Sentence (after navigation) logic
+    // get new Sentence index for segment navigation
     public int getNewSentenceIndex(int index1, int index2, String method)
     {
         List<Integer> possibleRelations = new ArrayList<>();
@@ -413,6 +413,10 @@ public class HtmlAnnotationEditor
                 sentence1.setObject(sentences.get(leftSentenceIndex).getCoveredText());
                 positionString1.setObject(getSegmentPositionString(rightSentenceIndex));
                 positionString2.setObject(getSegmentPositionString(leftSentenceIndex));
+                // Set pairIndex (for Progress)
+                pairIndex = possiblePairs.indexOf(new Pair<>(leftSentenceIndex, rightSentenceIndex));
+                LOG.info("FROM INDICES: " + leftSentenceIndex + " , " + rightSentenceIndex);
+                LOG.info("NEW INDEX: " + pairIndex);
                 renderTextRelations(target);
 
             }
@@ -426,6 +430,10 @@ public class HtmlAnnotationEditor
                 sentence1.setObject(sentences.get(leftSentenceIndex).getCoveredText());
                 positionString1.setObject(getSegmentPositionString(rightSentenceIndex));
                 positionString2.setObject(getSegmentPositionString(leftSentenceIndex));
+                // Set pairIndex (for Progress)
+                pairIndex = possiblePairs.indexOf(new Pair<>(leftSentenceIndex, rightSentenceIndex));
+                LOG.info("FROM INDICES: " + leftSentenceIndex + " , " + rightSentenceIndex);
+                LOG.info("NEW INDEX: " + pairIndex);
                 renderTextRelations(target);
             }
         });
@@ -438,6 +446,10 @@ public class HtmlAnnotationEditor
                 sentence2.setObject(sentences.get(rightSentenceIndex).getCoveredText());
                 positionString1.setObject(getSegmentPositionString(rightSentenceIndex));
                 positionString2.setObject(getSegmentPositionString(leftSentenceIndex));
+                // Set pairIndex (for Progress)
+                pairIndex = possiblePairs.indexOf(new Pair<>(leftSentenceIndex, rightSentenceIndex));
+                LOG.info("FROM INDICES: " + leftSentenceIndex + " , " + rightSentenceIndex);
+                LOG.info("NEW INDEX: " + pairIndex);
                 renderTextRelations(target);
             }
         });
@@ -450,6 +462,8 @@ public class HtmlAnnotationEditor
                 sentence2.setObject(sentences.get(rightSentenceIndex).getCoveredText());
                 positionString1.setObject(getSegmentPositionString(rightSentenceIndex));
                 positionString2.setObject(getSegmentPositionString(leftSentenceIndex));
+                // Set pairIndex (for Progress)
+                pairIndex = possiblePairs.indexOf(new Pair<>(leftSentenceIndex, rightSentenceIndex));
                 renderTextRelations(target);
             }
         });
@@ -534,22 +548,22 @@ public class HtmlAnnotationEditor
                  * Called when a option is selected of a dropdown list.
                  */
                 protected void onUpdate(AjaxRequestTarget aTarget) {
-                    LOG.info("TIME PASSED");
+                    //LOG.info("TIME PASSED");
                     long start = System.nanoTime();
                     Tag tag = (Tag) getFormComponent().getModelObject();
-                    LOG.info("1: " + (System.nanoTime() - start));
+                    //LOG.info("1: " + (System.nanoTime() - start));
                     relation.setRelationLeft(tag);
-                    LOG.info("Relation Left Choice: " + tag.getName());
-                    LOG.info("2: " + (System.nanoTime() - start));
+                    //LOG.info("Relation Left Choice: " + tag.getName());
+                    //LOG.info("2: " + (System.nanoTime() - start));
                     // Annotate both active Sentences
                     createSentenceAnnotation();
-                    LOG.info("3: " + (System.nanoTime() - start));
+                    //LOG.info("3: " + (System.nanoTime() - start));
                     // Annotate relation
                     createRelationAnnotation(tag, rightSentenceIndex, leftSentenceIndex);
-                    LOG.info("4: " + (System.nanoTime() - start));
+                    //LOG.info("4: " + (System.nanoTime() - start));
                     renderTextRelations(aTarget);
-                    LOG.info("5: " + (System.nanoTime() - start));
-                    LOG.info("END TIME PASSED");
+                    //LOG.info("5: " + (System.nanoTime() - start));
+                    //LOG.info("END TIME PASSED");
                 }
             }));
 
@@ -591,12 +605,12 @@ public class HtmlAnnotationEditor
     public void getSentences()
     {
         sentences = new ArrayList<>();
-        LOG.info("SENTENCES:");
+        //LOG.info("SENTENCES:");
         // Get all Sentences and store them
         if(preAnnotated){
             // Get Sentences / Spans from pre-annotated Source File
             for (AnnotationFS sentence : select(cas, getType(cas, SENTENCE_LAYER_NAME))) {
-                LOG.info(sentence.getCoveredText());
+                //LOG.info(sentence.getCoveredText());
                 sentences.add(sentence);
             }
             if(sentences.size() < 1){
@@ -607,7 +621,7 @@ public class HtmlAnnotationEditor
         if(!preAnnotated){
             // Get Sentences
             for (AnnotationFS sentence : select(cas, getType(cas, Sentence.class))) {
-                LOG.info(sentence.getCoveredText());
+                //LOG.info(sentence.getCoveredText());
                 sentences.add(sentence);
             }
         }
@@ -650,10 +664,10 @@ public class HtmlAnnotationEditor
         //List<Annotation> annotations = new ArrayList<>();
 
         AnnotatorState state = getModelObject();
-        LOG.info("Annotation Layers");
-        LOG.info(state.getFeatureStates().toString());
-        LOG.info(state.getRememberedArcFeatures().toString());
-        LOG.info(state.getRememberedSpanFeatures().toString());
+        //LOG.info("Annotation Layers");
+        //LOG.info(state.getFeatureStates().toString());
+        //LOG.info(state.getRememberedArcFeatures().toString());
+        //LOG.info(state.getRememberedSpanFeatures().toString());
         // Render visible (custom) layers
         //Map<String[], Queue<String>> colorQueues = new HashMap<>();
         for (AnnotationLayer layer : state.getAnnotationLayers()) {
@@ -669,14 +683,14 @@ public class HtmlAnnotationEditor
                 // Get Tagset
                 for (AnnotationFeature feat : annotationService.listSupportedFeatures(layer)) {
                     // Get Feature(s) -> should be one (with tagset)
-                    LOG.info("Feature: " + feat.getName());
+                    //LOG.info("Feature: " + feat.getName());
                     if(feat.getTagset() != null){
                         tagSetObject = feat.getTagset();
                         tagList = annotationService.listTags(tagSetObject);
                         feature = feat;
-                        LOG.info("TagList: " + tagSetObject.getName());
+                        //LOG.info("TagList: " + tagSetObject.getName());
                         for (Tag tag : tagList) {
-                            LOG.info(tag.getName());
+                            //LOG.info(tag.getName());
                         }
 
                     }
@@ -774,17 +788,17 @@ public class HtmlAnnotationEditor
             List selectedAnnos = cas.select(getType(cas,aAnnotationLayer.getName())).coveredBy(begin, end).asList();
             if(selectedAnnos.size() > 0){
                 alreadyAnnotated = true;
-                LOG.info("AlreadyAnnotated");
-                LOG.info(selectedAnnos.toString());
+                //LOG.info("AlreadyAnnotated");
+                //LOG.info(selectedAnnos.toString());
             }
         }catch (Exception e){
             handleError("Unable to check Annotated Text", e);
-            LOG.info("AlreadyAnnotated");
-            LOG.info("false");
+            //LOG.info("AlreadyAnnotated");
+            //LOG.info("false");
             return false;
         }
-        LOG.info("AlreadyAnnotated");
-        LOG.info(alreadyAnnotated ? "true" : "false");
+        //LOG.info("AlreadyAnnotated");
+        //LOG.info(alreadyAnnotated ? "true" : "false");
         return alreadyAnnotated;
     }
     // Checks if Relation already exists and updates View
@@ -795,7 +809,7 @@ public class HtmlAnnotationEditor
             .coveredBy(leftSentenceAnnoFS).asList();
         List<Annotation> selectedAnnoList_Right = cas.<Annotation>select(getType(cas,RELATION_LAYER_NAME))
             .coveredBy(rightSentenceAnnoFS).asList();
-        LOG.info("Detected annos");
+        //("Detected annos");
         Tag[] result1 = getRelationTags(selectedAnnoList_Left, leftSentenceAnnoFS, rightSentenceAnnoFS);
         Tag[] result2 = getRelationTags(selectedAnnoList_Right, leftSentenceAnnoFS, rightSentenceAnnoFS);
         // Update Relation
@@ -883,15 +897,15 @@ public class HtmlAnnotationEditor
     {
 
         long start = System.nanoTime();
-        LOG.info("createAnno 1:" + (System.nanoTime() - start));
+        //LOG.info("createAnno 1:" + (System.nanoTime() - start));
         start = System.nanoTime();
         // Annotation first Sentence
         annotateSentence(sentences.get(leftSentenceIndex));
-        LOG.info("createAnno 2:" + (System.nanoTime() - start));
+        //LOG.info("createAnno 2:" + (System.nanoTime() - start));
         start = System.nanoTime();
         // Annotation second Sentence
         annotateSentence(sentences.get(rightSentenceIndex));
-        LOG.info("createAnno 3:" + (System.nanoTime() - start));
+        //LOG.info("createAnno 3:" + (System.nanoTime() - start));
         start = System.nanoTime();
 
 
@@ -974,19 +988,27 @@ public class HtmlAnnotationEditor
             // Create new Relation
             AnnotationFS annotation = adapter.add(doc, username, originFS, targetFS, cas);
             adapter.setFeatureValue(doc, username, cas, WebAnnoCasUtil.getAddr(annotation), feature, aTag.getName());
+            //LOG.info("ANNOTAA: " + aTag.getName());
             if(aTag.getName().equals(EMPTY_FEATURE)){
                 if(alreadyTaggedPairs.contains(pairIndex)){
                     alreadyTaggedPairs.remove(pairIndex);
+                    LOG.info("REMOVED ANNO PROGRESS");
                 }
             }else{
+                //LOG.info(alreadyTaggedPairs.toString());
+                //LOG.info(" " + pairIndex);
                 if(!alreadyTaggedPairs.contains(pairIndex)){
                     // Check if other direction is already annotated and flag already tagged if so
                     Annotation inverseAnno = getRelationAnnotation(targetFS, originFS);
+                    //LOG.info("INVERSE ANNO");
+                    //LOG.info(inverseAnno.toString());
                     if(inverseAnno != null){
                         Feature label = inverseAnno.getType().getFeatureByBaseName("label");
                         String label_string = inverseAnno.getFeatureValueAsString(label);
+                        //LOG.info("PREV FEAT " + label_string);
                         if(!label_string.equals("") && !label_string.equals(EMPTY_FEATURE)){
                             alreadyTaggedPairs.add(pairIndex);
+                            //LOG.info("ADDED ANNO PROGRESS");
                         }
                     }
 
