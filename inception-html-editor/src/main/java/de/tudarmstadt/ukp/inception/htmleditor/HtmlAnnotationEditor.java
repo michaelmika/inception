@@ -31,6 +31,7 @@ import de.tudarmstadt.ukp.inception.htmleditor.model.Pair;
 import de.tudarmstadt.ukp.inception.htmleditor.model.RelationFeatureSupplier;
 import de.tudarmstadt.ukp.inception.htmleditor.model.TextRelation;
 import de.tudarmstadt.ukp.inception.htmleditor.progress.ProgressPanel;
+import de.tudarmstadt.ukp.inception.htmleditor.statistic.StatisticPanel;
 import org.apache.uima.cas.Feature;
 import org.apache.uima.jcas.tcas.Annotation;
 import de.tudarmstadt.ukp.clarin.webanno.api.annotation.adapter.SpanAdapter;
@@ -49,6 +50,7 @@ import org.apache.wicket.ajax.AjaxRequestTarget;
 import org.apache.wicket.ajax.form.AjaxFormComponentUpdatingBehavior;
 import org.apache.wicket.ajax.markup.html.form.AjaxButton;
 import org.apache.wicket.behavior.AttributeAppender;
+import org.apache.wicket.extensions.ajax.markup.html.modal.ModalWindow;
 import org.apache.wicket.feedback.IFeedback;
 import org.apache.wicket.markup.head.CssHeaderItem;
 import org.apache.wicket.markup.head.IHeaderResponse;
@@ -114,6 +116,9 @@ public class HtmlAnnotationEditor
     private int pairIndex = 0;
 
     private ProgressPanel progressPanel;
+
+    private StatisticPanel statisticPanel;
+    private ModalWindow statisticsDialog;
 
     private CAS cas;
 
@@ -299,6 +304,7 @@ public class HtmlAnnotationEditor
         return possibleRelations.get(tmp);
     }
 
+
     public boolean isSameSentence(AnnotationFS anno1, AnnotationFS anno2)
     {
         return anno1.getBegin() == anno2.getBegin() && anno1.getEnd() == anno2.getEnd();
@@ -369,6 +375,25 @@ public class HtmlAnnotationEditor
             protected void onSubmit(AjaxRequestTarget target){
                 super.onSubmit(target);
                 saveCas();
+            }
+        });
+        // Statistic Dialog
+        statisticsDialog = new ModalWindow("statistic-panel");
+        statisticsDialog.setTitle("Label Statistics");
+        int[] valueArray = getTagValues();
+        int[] values = Arrays.copyOfRange(valueArray, 0, valueArray.length - 1);
+        statisticPanel = new StatisticPanel(statisticsDialog.getContentId(), getTagNames(), values, valueArray[valueArray.length - 1]);
+        statisticsDialog.setContent(statisticPanel);
+        form.add(statisticsDialog);
+        // Statistics Button
+        form.add(new AjaxButton("statisticsButton"){
+            @Override
+            protected void onSubmit(AjaxRequestTarget target){
+                super.onSubmit(target);
+                int[] valueArray = getTagValues();
+                int[] values = Arrays.copyOfRange(valueArray, 0, valueArray.length - 1);
+                //statisticPanel.setNewValues(values, valueArray[valueArray.length - 1]);
+                statisticsDialog.show(target);
             }
         });
         // Navigation Buttons
@@ -602,6 +627,55 @@ public class HtmlAnnotationEditor
             //        OnDomReadyHeaderItem.forScript(initAnnotatorJs(vis, storeAdapter)));
         }
     }
+    // For statistic Panel: Calc Numbers of Tag
+    public int[] getNumberOfRelationAnnotationsByTag(String aLabel)
+    {
+        int result[] = new int[2];
+        // Number with Tag
+        result[0] = 0;
+        // Total Number
+        result[1] = 0;
+        List<Annotation> annos = cas.<Annotation>select(getType(cas,RELATION_LAYER_NAME)).asList();
+        for (Annotation anno : annos) {
+            Feature label = anno.getType().getFeatureByBaseName("label");
+            String labelString = anno.getFeatureValueAsString(label);
+            if(!labelString.equals("unset")){
+                result[1]++;
+                if(labelString.equals(aLabel)){
+                    result[0]++;
+                }
+            }
+        }
+        return result;
+    }
+    // get Statistic Data
+    public String[] getTagNames()
+    {
+        String[] names = new String[tagList.size()];
+        int index = 0;
+        for(Tag t : tagList){
+            names[index] = t.getName();
+            index++;
+        }
+        return names;
+    }
+    // get Statistic Data (last index is totalNumber)
+    public int[] getTagValues()
+    {
+        int[] values = new int[tagList.size() + 1];
+        int totalNumber = 0;
+        int index = 0;
+        for(Tag t : tagList){
+            int[] valuesArray = getNumberOfRelationAnnotationsByTag(t.getName());
+            values[index] = valuesArray[0];
+            totalNumber = valuesArray[1];
+            index++;
+        }
+        // Last Value is totalNumber
+        values[index] = totalNumber;
+        return values;
+    }
+
     public void getSentences()
     {
         sentences = new ArrayList<>();

@@ -24,7 +24,7 @@ public class ProgressModel implements IModel<int[]> {
         if(totalSize < 1){
             return result;
         }
-        result[0] = (int)((int)taggedPairsModel.getObject().size()) / ((int)totalSize);
+        result[0] = (int)Math.round((double)taggedPairsModel.getObject().size() / ((double)totalSize) * 100);
         result[1] = (int)taggedPairsModel.getObject().size();
         result[2] = (int)totalSize;
         return result;
