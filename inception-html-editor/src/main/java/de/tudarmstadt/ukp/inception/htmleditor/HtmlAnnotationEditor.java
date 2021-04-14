@@ -160,18 +160,22 @@ public class HtmlAnnotationEditor
             int i = sentences.indexOf(dependentFS);
             int b = sentences.indexOf(governorFS);
             Pair<Integer, Integer> pair = new Pair<>(i, b);
-            result.add(pair);
+            boolean added = result.add(pair);
             // Check if already Tagged
             Feature label1 = relation.getType().getFeatureByBaseName("label");
             String label_string1 = relation.getFeatureValueAsString(label1);
             if(
-                !label_string1.equals("") && !label_string1.equals(EMPTY_FEATURE)
+                !label_string1.equals("")
+                && !label_string1.equals(EMPTY_FEATURE)
+                && added
             ){
                 alreadyTaggedPairs.add(result.size() - 1);
             }
         }
         LOG.info("ALL possible Pairs:");
         LOG.info(result.toString());
+        LOG.info("Already Tagged:");
+        LOG.info(alreadyTaggedPairs.toString());
         return result;
     }
 
@@ -392,7 +396,7 @@ public class HtmlAnnotationEditor
                 super.onSubmit(target);
                 int[] valueArray = getTagValues();
                 int[] values = Arrays.copyOfRange(valueArray, 0, valueArray.length - 1);
-                //statisticPanel.setNewValues(values, valueArray[valueArray.length - 1]);
+                statisticPanel.setNewValues(values, valueArray[valueArray.length - 1]);
                 statisticsDialog.show(target);
             }
         });
