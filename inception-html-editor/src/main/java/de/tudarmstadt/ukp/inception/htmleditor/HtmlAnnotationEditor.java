@@ -150,6 +150,8 @@ public class HtmlAnnotationEditor
     {
         Set<Pair<Integer, Integer>> result = new LinkedHashSet<>();
         List<Annotation> annoList = cas.<Annotation>select(getType(cas,RELATION_LAYER_NAME)).asList();
+        // Bugfix, if double annotation exists
+        int last_i = -1, last_b = -1;
         for (Annotation relation : annoList) {
             // Dependent
             Feature dependentFeat = relation.getType().getFeatureByBaseName("Dependent");
@@ -161,6 +163,8 @@ public class HtmlAnnotationEditor
             int b = sentences.indexOf(governorFS);
             Pair<Integer, Integer> pair = new Pair<>(i, b);
             boolean added = result.add(pair);
+            // if not added check if
+            // Delete unset
             // Check if already Tagged
             Feature label1 = relation.getType().getFeatureByBaseName("label");
             String label_string1 = relation.getFeatureValueAsString(label1);
@@ -170,7 +174,18 @@ public class HtmlAnnotationEditor
                 && added
             ){
                 alreadyTaggedPairs.add(result.size() - 1);
+            }else if(
+                !label_string1.equals("")
+                    && !label_string1.equals(EMPTY_FEATURE)
+                    && !added && !alreadyTaggedPairs.contains(result.size() - 1)
+                    && last_b == b && last_i == i
+            ){
+                // Bugfix for double annotation (unset + real annotation; in that order)
+                alreadyTaggedPairs.add(result.size() - 1);
+                LOG.info("PAIR NOT FOUND: added: " + added + " index: " + (result.size() - 1) + " label:" + label_string1 + " pair: " + pair.toString());
             }
+            last_b = b;
+            last_i = i;
         }
         LOG.info("ALL possible Pairs:");
         LOG.info(result.toString());
@@ -431,6 +446,30 @@ public class HtmlAnnotationEditor
                 positionString1.setObject(getSegmentPositionString(rightSentenceIndex));
                 positionString2.setObject(getSegmentPositionString(leftSentenceIndex));
                 renderTextRelations(target);
+            }
+        });
+        form.add(new AjaxButton("pairNextNone"){
+            @Override
+            protected void onSubmit(AjaxRequestTarget target){
+                super.onSubmit(target);
+                // Check if there are annotations left
+                if(alreadyTaggedPairs.size() < possiblePairs.size()){
+                    Pair<Integer, Integer> result = getNewPair("next");
+                    while(alreadyTaggedPairs.contains(pairIndex)){
+                        result = getNewPair("next");
+                    }
+                    LOG.info(alreadyTaggedPairs.toString());
+                    LOG.info("Pair Index: " + pairIndex);
+                    leftSentenceIndex = (int) result.getLeft();
+                    rightSentenceIndex = (int) result.getRight();
+                    leftIndexModel.setObject(leftSentenceIndex);
+                    rightIndexModel.setObject(rightSentenceIndex);
+                    sentence1.setObject(sentences.get(leftSentenceIndex).getCoveredText());
+                    sentence2.setObject(sentences.get(rightSentenceIndex).getCoveredText());
+                    positionString1.setObject(getSegmentPositionString(rightSentenceIndex));
+                    positionString2.setObject(getSegmentPositionString(leftSentenceIndex));
+                    renderTextRelations(target);
+                }
             }
         });
         form.add(new AjaxButton("textLeftPrevious"){
@@ -974,17 +1013,17 @@ public class HtmlAnnotationEditor
     private void createSentenceAnnotation()
     {
 
-        long start = System.nanoTime();
+        //long start = System.nanoTime();
         //LOG.info("createAnno 1:" + (System.nanoTime() - start));
-        start = System.nanoTime();
+        //start = System.nanoTime();
         // Annotation first Sentence
         annotateSentence(sentences.get(leftSentenceIndex));
         //LOG.info("createAnno 2:" + (System.nanoTime() - start));
-        start = System.nanoTime();
+        //start = System.nanoTime();
         // Annotation second Sentence
         annotateSentence(sentences.get(rightSentenceIndex));
         //LOG.info("createAnno 3:" + (System.nanoTime() - start));
-        start = System.nanoTime();
+        //start = System.nanoTime();
 
 
         // Annotate sentence 1
