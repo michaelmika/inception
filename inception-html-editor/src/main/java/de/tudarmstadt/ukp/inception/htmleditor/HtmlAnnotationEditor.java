@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.function.Supplier;
 
+import de.tudarmstadt.ukp.inception.htmleditor.filter.FilterPanel;
 import de.tudarmstadt.ukp.inception.htmleditor.meta.MetaDataPanel;
 import de.tudarmstadt.ukp.inception.htmleditor.model.Pair;
 import de.tudarmstadt.ukp.inception.htmleditor.model.RelationFeatureSupplier;
@@ -118,11 +119,14 @@ public class HtmlAnnotationEditor
     private ProgressPanel progressPanel;
 
     private StatisticPanel statisticPanel;
-    private ModalWindow statisticsDialog;
+    private ModalWindow statisticsDialog, filterDialog;
 
     private CAS cas;
 
     private boolean preAnnotated = false;
+
+    private static Tag filterLabel = null;
+    private FilterPanel filterPanel;
 
     public Pair<Integer, Integer> getNewPair(String method){
         switch (method) {
@@ -142,6 +146,34 @@ public class HtmlAnnotationEditor
                 break;
             default:
                 break;
+        }
+        // Filtering
+        if(filterLabel != null){
+            // Get Relation Annotation
+            int a = possiblePairs.get(pairIndex).getLeft();
+            int b = possiblePairs.get(pairIndex).getRight();
+            List<Annotation> selectedAnnoList_Left = cas.<Annotation>select(getType(cas,RELATION_LAYER_NAME))
+                .coveredBy(sentences.get(a)).asList();
+            List<Annotation> selectedAnnoList_Right = cas.<Annotation>select(getType(cas,RELATION_LAYER_NAME))
+                .coveredBy(sentences.get(b)).asList();
+            //Get Tags
+            Tag[] result1 = getRelationTags(selectedAnnoList_Left, sentences.get(a), sentences.get(b));
+            Tag[] result2 = getRelationTags(selectedAnnoList_Right, sentences.get(a), sentences.get(b));
+            Tag leftRelation = (
+                result1[0] != null ? result1[0] :
+                    result2[0] != null ? result2[0] : null
+            );
+            Tag rightRelation = (
+                result1[1] != null ? result1[1] :
+                    result2[1] != null ? result2[1] : null
+            );
+            // Check if Tags are equal to filter (or at end of list --> infinite loop)
+            if(filterLabel.equals(leftRelation) || filterLabel.equals(rightRelation) || pairIndex + 1 == possiblePairs.size()){
+                return possiblePairs.get(pairIndex);
+            }else{
+                // if not, proceed recursive
+                return getNewPair(method);
+            }
         }
         return possiblePairs.get(pairIndex);
     }
@@ -182,7 +214,7 @@ public class HtmlAnnotationEditor
             ){
                 // Bugfix for double annotation (unset + real annotation; in that order)
                 alreadyTaggedPairs.add(result.size() - 1);
-                LOG.info("PAIR NOT FOUND: added: " + added + " index: " + (result.size() - 1) + " label:" + label_string1 + " pair: " + pair.toString());
+                //LOG.info("PAIR NOT FOUND: added: " + added + " index: " + (result.size() - 1) + " label:" + label_string1 + " pair: " + pair.toString());
             }
             last_b = b;
             last_i = i;
@@ -413,6 +445,21 @@ public class HtmlAnnotationEditor
                 int[] values = Arrays.copyOfRange(valueArray, 0, valueArray.length - 1);
                 statisticPanel.setNewValues(values, valueArray[valueArray.length - 1]);
                 statisticsDialog.show(target);
+            }
+        });
+        // Filter Dialog
+        filterDialog = new ModalWindow("filter-panel");
+        filterDialog.setTitle("Filter Label");
+        filterPanel = new FilterPanel(filterDialog.getContentId(), tagList, filterDialog);
+        filterDialog.setContent(filterPanel);
+        form.add(filterDialog);
+        // Filter Button
+        form.add(new AjaxButton("filterButton"){
+            @Override
+            protected void onSubmit(AjaxRequestTarget target){
+                super.onSubmit(target);
+                filterPanel.setTagList(tagList);
+                filterDialog.show(target);
             }
         });
         // Navigation Buttons
@@ -717,6 +764,13 @@ public class HtmlAnnotationEditor
         // Last Value is totalNumber
         values[index] = totalNumber;
         return values;
+    }
+    // Filter
+    public static void setFilter(Tag aTag){
+        filterLabel = aTag;
+    }
+    public static Tag getFilter(){
+        return filterLabel;
     }
 
     public void getSentences()

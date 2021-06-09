@@ -188,7 +188,7 @@
     z-index: 2;
     position: absolute;
 }
-.textrel-statistics {
+.textrel-statistics, .textrel-filter {
     padding: 20px;
 }
 .textrel-statistics-name {
@@ -200,4 +200,7 @@
     top: 0;
     z-index: 3;
     position: absolute;
+}
+.textrel-filter .btn i {
+    margin-right: 10px;
 }
